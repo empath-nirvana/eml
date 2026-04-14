@@ -1,0 +1,6 @@
+name = "Eml"
+version = "0.1.0"
+defaultTargets = ["Eml"]
+
+[[lean_lib]]
+name = "Eml"
