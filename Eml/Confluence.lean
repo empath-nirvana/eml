@@ -506,7 +506,35 @@ theorem strict_reducing_wcr_np :
           ⟨hr', fun heq => hne2 (by rw [heq])⟩
         exact ⟨.node m e, hre.strict_node_r, hr'e.strict_node_r⟩
       | exp_ln z => exact absurd hr one_reducing_vacuous
-      | ln_exp z => sorry
+      | ln_exp z =>
+        -- a = ln'(exp' z). b = node one r'. c = z. Need join b, c.
+        -- Symmetric to (h1=ln_exp, h2=node_r): swap join witnesses.
+        cases hr with
+        | node_l _ _ _ h_inner =>
+          cases h_inner with
+          | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | node_r _ _ _ h2i =>
+            cases h2i with
+            | node_l _ z' _ hz =>
+              refine ⟨z', .single ⟨.ln_exp z', ?_⟩, .single ⟨hz, ?_⟩⟩
+              · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
+              · intro heq; subst heq; exact hne1 rfl
+            | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+            | exp_ln _ => exact ⟨_, .refl, .refl⟩
+            | exp_zero => exact ⟨_, .refl, .refl⟩
+            | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
+            | mul_one_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r.of_node_l (np_add_zero_l_false _)
+            | mul_one_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r.of_node_l (np_add_zero_r_false _)
+            | mul_zero_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_l_false _)
+            | mul_zero_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_r_false _)
+            | inv_inv _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_inv_inv_false _)
+          | ln_exp _ => exact ⟨_, .refl, .refl⟩
+          | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+          | cancel_ln_exp _ => exact absurd rfl hne1
+        | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+        | exp_ln _ => exact ⟨_, .refl, .refl⟩
+        | exp_zero => exact ⟨_, .refl, .refl⟩
+        | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
       | sub_zero z => sorry
       | sub_self z => sorry
       | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
@@ -560,7 +588,36 @@ theorem strict_reducing_wcr_np :
       -- a = ln'(exp' z). b = z. m = one, r complex.
       cases h2 with
       | node_l _ _ _ hm => exact absurd hm one_reducing_vacuous
-      | node_r _ _ _ hr => sorry  -- congruence on right child
+      | node_r _ _ _ hr =>
+        -- hr : Reducing (node (node one (node z one)) one) r'
+        -- c = node one r'. b = z. Need join z, node one r'.
+        cases hr with
+        | node_l _ _ _ h_inner =>
+          cases h_inner with
+          | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | node_r _ _ _ h2i =>
+            cases h2i with
+            | node_l _ z' _ hz =>
+              -- Join at z': b→z' via hz, c→z' via ln_exp.
+              refine ⟨z', .single ⟨hz, ?_⟩, .single ⟨.ln_exp z', ?_⟩⟩
+              · intro heq; subst heq; exact hne2 rfl
+              · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
+            | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+            | exp_ln _ => exact ⟨_, .refl, .refl⟩
+            | exp_zero => exact ⟨_, .refl, .refl⟩
+            | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
+            | mul_one_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r.of_node_l (np_add_zero_l_false _)
+            | mul_one_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r.of_node_l (np_add_zero_r_false _)
+            | mul_zero_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_l_false _)
+            | mul_zero_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_r_false _)
+            | inv_inv _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_inv_inv_false _)
+          | ln_exp _ => exact ⟨_, .refl, .refl⟩
+          | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+          | cancel_ln_exp _ => exact absurd rfl hne2
+        | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+        | exp_ln _ => exact ⟨_, .refl, .refl⟩
+        | exp_zero => exact ⟨_, .refl, .refl⟩
+        | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
       | ln_exp _ => exact ⟨_, .refl, .refl⟩
       | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
     | sub_zero z =>
