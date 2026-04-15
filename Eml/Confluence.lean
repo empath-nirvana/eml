@@ -545,7 +545,27 @@ theorem strict_reducing_wcr_np :
       | mul_zero_r z => exact absurd hr one_reducing_vacuous
       | neg_neg z => exact absurd hp (np_neg_neg_false _)
       | inv_inv z => exact absurd hr one_reducing_vacuous
-      | ln_mul a_arg b_arg => sorry
+      | ln_mul a_arg b_arg =>
+        -- a = ln'(mul' a_arg b_arg). m = one, r = node (node one (mul' a_arg b_arg)) one
+        -- b = node one r' (node_r step), c = add'(ln' a_arg, ln' b_arg) (ln_mul step)
+        cases hr with
+        | node_l _ _ _ h_inner =>
+          cases h_inner with
+          | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | node_r _ _ _ h2i =>
+            cases h2i with
+            | node_l _ A' _ hA =>
+              refine ⟨A', .single ⟨.ln_exp A', ?_⟩, ?_⟩
+              · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
+              · by_cases heq : add' (ln' a_arg) (ln' b_arg) = A'
+                · subst heq; exact .refl
+                · exact .single ⟨hA, heq⟩
+            | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+            | mul_one_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_one_l_false _)
+            | mul_one_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_one_r_false _)
+            | mul_zero_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_l_false _)
+            | mul_zero_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_r_false _)
+        | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
       | exp_zero => exact absurd hr one_reducing_vacuous
       | cancel_exp_ln z => sorry
       | cancel_ln_exp z => sorry
@@ -636,7 +656,33 @@ theorem strict_reducing_wcr_np :
     | mul_zero_r z => exact absurd hp (np_mul_zero_r_false _)
     | neg_neg z => exact absurd hp (np_neg_neg_false _)
     | inv_inv z => exact absurd hp (np_inv_inv_false _)
-    | ln_mul a_arg b_arg => sorry
+    | ln_mul a_arg b_arg =>
+      -- a = ln'(mul' a_arg b_arg). b = add'(ln' a_arg, ln' b_arg) (ln_mul step).
+      -- Symmetric to (h1=node_r, h2=ln_mul): swap b and c.
+      cases h2 with
+      | node_l _ _ _ hm => exact absurd hm one_reducing_vacuous
+      | node_r _ _ r' hr =>
+        -- c = node one r'. hr : Reducing r r' where r = node (node one (mul' a_arg b_arg)) one
+        cases hr with
+        | node_l _ _ _ h_inner =>
+          cases h_inner with
+          | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | node_r _ _ _ h2i =>
+            cases h2i with
+            | node_l _ A' _ hA =>
+              refine ⟨A', ?_, .single ⟨.ln_exp A', ?_⟩⟩
+              · by_cases heq : add' (ln' a_arg) (ln' b_arg) = A'
+                · subst heq; exact .refl
+                · exact .single ⟨hA, heq⟩
+              · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
+            | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+            | mul_one_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_one_l_false _)
+            | mul_one_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_one_r_false _)
+            | mul_zero_l _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_l_false _)
+            | mul_zero_r _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_mul_zero_r_false _)
+        | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+      | ln_exp _ => exact ⟨_, .refl, .refl⟩
+      | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
     | exp_zero =>
       -- a = exp'(zero) = node zero one. b = one. zero nearly irreducible.
       cases h2 with
