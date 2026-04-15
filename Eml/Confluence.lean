@@ -237,19 +237,193 @@ theorem NonPartial.pres_strict {a b : Eml} (hp : NonPartial a) (h : StrictReduci
     NonPartial b :=
   hp.pres h.1
 
-/-! ### §3.1 Main WCR theorem -/
+/-! ### §3.1 Infrastructure for the WCR proof -/
+
+/-- Eml.one is irreducible: no Reducing step departs from it. -/
+private theorem one_reducing_vacuous {b : Eml} (h : Reducing .one b) : False := by cases h
+
+/-- Eml.var is irreducible. -/
+private theorem var_reducing_vacuous {n : Nat} {b : Eml} (h : Reducing (.var n) b) : False :=
+  by cases h
+
+/-- Lift a single StrictReducing step to a node's left child. -/
+private theorem StrictReducing.node_l {m m' r : Eml} (h : StrictReducing m m') :
+    StrictReducing (.node m r) (.node m' r) :=
+  ⟨.node_l _ _ _ h.1, fun heq => h.2 (congrArg (fun | .node l _ => l | x => x) heq)⟩
+
+/-- Lift a single StrictReducing step to a node's right child. -/
+private theorem StrictReducing.node_r {m r r' : Eml} (h : StrictReducing r r') :
+    StrictReducing (.node m r) (.node m r') :=
+  ⟨.node_r _ _ _ h.1, fun heq => h.2 (congrArg (fun | .node _ r => r | x => x) heq)⟩
+
+/-- Lift a Star StrictReducing chain to a node's left child. -/
+private theorem Star.strict_node_l {m m' r : Eml} (h : Star StrictReducing m m') :
+    Star StrictReducing (.node m r) (.node m' r) := by
+  induction h with
+  | refl => exact .refl
+  | cons hstep _ ih => exact .cons (StrictReducing.node_l hstep) ih
+
+/-- Lift a Star StrictReducing chain to a node's right child. -/
+private theorem Star.strict_node_r {m r r' : Eml} (h : Star StrictReducing r r') :
+    Star StrictReducing (.node m r) (.node m r') := by
+  induction h with
+  | refl => exact .refl
+  | cons hstep _ ih => exact .cons (StrictReducing.node_r hstep) ih
+
+/-- Lift a Star Reducing chain to a node's left child. -/
+private theorem Star.reducing_node_l {m m' r : Eml} (h : Star Reducing m m') :
+    Star Reducing (.node m r) (.node m' r) := by
+  induction h with
+  | refl => exact .refl
+  | cons hstep _ ih => exact .cons (.node_l _ _ _ hstep) ih
+
+/-- Lift a Star Reducing chain to a node's right child. -/
+private theorem Star.reducing_node_r {m r r' : Eml} (h : Star Reducing r r') :
+    Star Reducing (.node m r) (.node m r') := by
+  induction h with
+  | refl => exact .refl
+  | cons hstep _ ih => exact .cons (.node_r _ _ _ hstep) ih
+
+/-- Extract NonPartial for the left child of a node. -/
+private theorem NonPartial.of_node_l {m r : Eml} (hp : NonPartial (.node m r)) :
+    NonPartial m := by
+  intro s hs
+  have h := hp (.node s r) (Star.reducing_node_l hs)
+  cases hc : containsLnZero s with
+  | false => rfl
+  | true => simp [containsLnZero, hc] at h
+
+/-- Extract NonPartial for the right child of a node. -/
+private theorem NonPartial.of_node_r {m r : Eml} (hp : NonPartial (.node m r)) :
+    NonPartial r := by
+  intro s hs
+  have h := hp (.node m s) (Star.reducing_node_r hs)
+  cases hc : containsLnZero s with
+  | false => rfl
+  | true => simp [containsLnZero, hc] at h
+
+/-! ### §3.2 Main WCR theorem -/
 
 /-- **Local confluence of the strict reducing system (away from partiality).**
 
     Proved by structural induction on `a`, case-splitting on the two
-    Reducing steps. The congruence×congruence case uses the induction
-    hypothesis. The base×congruence cases require case-splitting on
-    the inner reduction. The base×base cases require critical pair
-    witnesses (all joinable for NonPartial terms, per KB.lean). -/
+    Reducing steps. -/
 theorem strict_reducing_wcr_np :
     ∀ a b c, NonPartial a → StrictReducing a b → StrictReducing a c →
     ∃ d, Star StrictReducing b d ∧ Star StrictReducing c d := by
-  sorry
+  intro a
+  induction a with
+  | one => intro _ _ _ ⟨h, _⟩; exact absurd h one_reducing_vacuous
+  | var _ => intro _ _ _ ⟨h, _⟩ _; exact absurd h var_reducing_vacuous
+  | node m r ihm ihr =>
+    intro b c hp ⟨h1, hne1⟩ ⟨h2, hne2⟩
+    cases h1 with
+    -- ====== h1 = congruence left ======
+    | node_l _ m' _ hm =>
+      cases h2 with
+      | node_l _ m'' _ hm' =>
+        obtain ⟨e, hm'e, hm''e⟩ := ihm m' m'' hp.of_node_l
+          ⟨hm, fun heq => hne1 (by rw [heq])⟩
+          ⟨hm', fun heq => hne2 (by rw [heq])⟩
+        exact ⟨.node e r, hm'e.strict_node_l, hm''e.strict_node_l⟩
+      | node_r _ _ r' hr =>
+        exact ⟨.node m' r',
+          .single (StrictReducing.node_r ⟨hr, fun heq => hne2 (by rw [heq])⟩),
+          .single (StrictReducing.node_l ⟨hm, fun heq => hne1 (by rw [heq])⟩)⟩
+      | exp_ln z => sorry
+      | ln_exp z => exact absurd hm one_reducing_vacuous
+      | sub_zero z => sorry
+      | sub_self z => sorry
+      | add_zero_l z => sorry
+      | add_zero_r z => sorry
+      | mul_one_l z => sorry
+      | mul_one_r z => sorry
+      | mul_zero_l z => sorry
+      | mul_zero_r z => sorry
+      | neg_neg z => sorry
+      | inv_inv z => sorry
+      | ln_mul a_arg b_arg => exact absurd hm one_reducing_vacuous
+      | exp_zero => sorry
+      | cancel_exp_ln z => sorry
+      | cancel_ln_exp z => sorry
+    -- ====== h1 = congruence right ======
+    | node_r _ _ r' hr =>
+      cases h2 with
+      | node_l _ m'' _ hm'' =>
+        exact ⟨.node m'' r',
+          .single (StrictReducing.node_l ⟨hm'', fun heq => hne2 (by rw [heq])⟩),
+          .single (StrictReducing.node_r ⟨hr, fun heq => hne1 (by rw [heq])⟩)⟩
+      | node_r _ _ r'' hr' =>
+        obtain ⟨e, hre, hr'e⟩ := ihr r' r'' hp.of_node_r
+          ⟨hr, fun heq => hne1 (by rw [heq])⟩
+          ⟨hr', fun heq => hne2 (by rw [heq])⟩
+        exact ⟨.node m e, hre.strict_node_r, hr'e.strict_node_r⟩
+      | exp_ln z => exact absurd hr one_reducing_vacuous
+      | ln_exp z => sorry
+      | sub_zero z => sorry
+      | sub_self z => sorry
+      | add_zero_l z => sorry
+      | add_zero_r z => sorry
+      | mul_one_l z => exact absurd hr one_reducing_vacuous
+      | mul_one_r z => exact absurd hr one_reducing_vacuous
+      | mul_zero_l z => exact absurd hr one_reducing_vacuous
+      | mul_zero_r z => exact absurd hr one_reducing_vacuous
+      | neg_neg z => sorry
+      | inv_inv z => exact absurd hr one_reducing_vacuous
+      | ln_mul a_arg b_arg => sorry
+      | exp_zero => exact absurd hr one_reducing_vacuous
+      | cancel_exp_ln z => sorry
+      | cancel_ln_exp z => sorry
+    -- ====== h1 = base rule ======
+    | exp_ln z =>
+      -- a = exp'(ln' z) = node (ln' z) one. b = z.
+      cases h2 with
+      | node_l _ m'' _ hm'' =>
+        -- c = node m'' one. hm'' : Reducing (ln' z) m''. Need join z, node m'' one.
+        cases hm'' with
+        | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+        | node_r _ _ _ h_inner =>
+          -- m'' = node one Y. c = node (node one Y) one.
+          cases h_inner with
+          | node_l _ _ _ h2i =>
+            cases h2i with
+            | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+            | node_r _ _ z' hz =>
+              -- Join at z': b→z' via hz, c→z' via exp_ln.
+              refine ⟨z', .single ⟨hz, ?_⟩, .single ⟨.exp_ln z', ?_⟩⟩
+              · intro heq; subst heq; exact hne2 rfl
+              · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
+            | ln_exp _ => exact ⟨_, .refl, .refl⟩
+            | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+            | cancel_ln_exp _ =>
+              -- z=one, m''=ln' one=zero...but then c=exp'(zero)=a, contradicts hne2
+              exact absurd rfl hne2
+          | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | exp_ln _ => exact ⟨_, .refl, .refl⟩
+          | exp_zero => exact ⟨_, .refl, .refl⟩
+          | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
+        | ln_exp _ => exact ⟨_, .refl, .refl⟩
+        | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+        | cancel_ln_exp _ => exact absurd rfl hne2
+      | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+      | exp_ln _ => exact ⟨_, .refl, .refl⟩
+      | exp_zero => exact ⟨_, .refl, .refl⟩
+      | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
+    | ln_exp z => sorry
+    | sub_zero z => sorry
+    | sub_self z => sorry
+    | add_zero_l z => sorry
+    | add_zero_r z => sorry
+    | mul_one_l z => sorry
+    | mul_one_r z => sorry
+    | mul_zero_l z => sorry
+    | mul_zero_r z => sorry
+    | neg_neg z => sorry
+    | inv_inv z => sorry
+    | ln_mul a_arg b_arg => sorry
+    | exp_zero => sorry
+    | cancel_exp_ln z => sorry
+    | cancel_ln_exp z => sorry
 
 /-- **Confluence of the strict reducing system (away from partiality).**
 
