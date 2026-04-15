@@ -409,11 +409,37 @@ theorem strict_reducing_wcr_np :
       | exp_ln _ => exact ⟨_, .refl, .refl⟩
       | exp_zero => exact ⟨_, .refl, .refl⟩
       | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
-    | ln_exp z => sorry
-    | sub_zero z => sorry
+    | ln_exp z =>
+      -- a = ln'(exp' z). b = z. m = one, r complex.
+      cases h2 with
+      | node_l _ _ _ hm => exact absurd hm one_reducing_vacuous
+      | node_r _ _ _ hr => sorry  -- congruence on right child
+      | ln_exp _ => exact ⟨_, .refl, .refl⟩
+      | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+    | sub_zero z =>
+      cases h2 with
+      | node_l _ _ _ hm => sorry
+      | node_r _ _ _ hr => sorry
+      | sub_zero _ => exact ⟨_, .refl, .refl⟩
+      | sub_self _ => exact ⟨_, .refl, .refl⟩
+      | cancel_exp_ln _ => sorry  -- overlap: b=ln'(exp'(zero)), c=zero
     | sub_self z => sorry
-    | add_zero_l z => sorry
-    | add_zero_r z => sorry
+    | add_zero_l z =>
+      cases h2 with
+      | node_l _ _ _ hm => sorry
+      | node_r _ _ _ hr => sorry
+      | add_zero_l _ => exact ⟨_, .refl, .refl⟩
+      | add_zero_r _ => exact ⟨_, .refl, .refl⟩
+      | neg_neg _ => exact ⟨_, .refl, .refl⟩
+    | add_zero_r z =>
+      cases h2 with
+      | node_l _ _ _ hm => sorry
+      | node_r _ _ _ hr => sorry
+      | add_zero_r _ => exact ⟨_, .refl, .refl⟩
+      | add_zero_l _ => exact ⟨_, .refl, .refl⟩
+      | sub_self _ => sorry
+      | cancel_exp_ln _ => sorry
+      | neg_neg _ => sorry
     | mul_one_l z => sorry
     | mul_one_r z => sorry
     | mul_zero_l z => sorry
