@@ -396,6 +396,25 @@ private theorem np_neg_neg_false (z : Eml) : NonPartial (neg' (neg' z)) → Fals
   change containsLnZero (.node (ln' zero) (exp' (neg' z))) = false at h
   simp [containsLnZero, containsLnZero_lnzero] at h
 
+/-- inv'(inv' z) contains ln'(zero) — NonPartial is vacuously false. -/
+private theorem np_inv_inv_false (z : Eml) : NonPartial (inv' (inv' z)) → False := by
+  intro hp; have h := hp _ .refl
+  -- inv'(inv' z) = exp'(neg'(ln'(exp'(neg'(ln' z)))))
+  -- The left child is neg'(ln'(exp'(neg'(ln' z)))) which contains ln'(zero)
+  -- via neg' = sub'(zero, ...) = node (ln' zero) (exp' ...)
+  change containsLnZero (.node (neg' (ln' (exp' (neg' (ln' z))))) .one) = false at h
+  have : containsLnZero (neg' (ln' (exp' (neg' (ln' z))))) = true :=
+    clz_node_l containsLnZero_lnzero  -- neg' = node (ln' zero) ..., left child is ln' zero
+  simp [containsLnZero, this] at h
+
+/-- add'(z, zero) contains ln'(zero) — NonPartial is vacuously false. -/
+private theorem np_add_zero_r_false (z : Eml) : NonPartial (add' z zero) → False := by
+  intro hp; have h := hp _ .refl
+  -- add'(z, zero) = sub'(z, neg' zero). neg' zero = node (ln' zero) (exp' zero).
+  -- So the right child exp'(neg' zero) contains ln' zero.
+  change containsLnZero (.node (ln' z) (exp' (neg' zero))) = false at h
+  simp [containsLnZero, clz_exp_neg_zero] at h
+
 /-! ### §3.2 Main WCR theorem -/
 
 /-- **Local confluence of the strict reducing system (away from partiality).**
@@ -452,13 +471,13 @@ theorem strict_reducing_wcr_np :
       | sub_zero z => sorry
       | sub_self z => sorry
       | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
-      | add_zero_r z => sorry
+      | add_zero_r z => exact absurd hp (np_add_zero_r_false _)
       | mul_one_l z => exact absurd hp (np_mul_one_l_false _)
       | mul_one_r z => exact absurd hp (np_mul_one_r_false _)
       | mul_zero_l z => exact absurd hp (np_mul_zero_l_false _)
       | mul_zero_r z => exact absurd hp (np_mul_zero_r_false _)
       | neg_neg z => exact absurd hp (np_neg_neg_false _)
-      | inv_inv z => sorry
+      | inv_inv z => exact absurd hp (np_inv_inv_false _)
       | ln_mul a_arg b_arg => exact absurd hm one_reducing_vacuous
       | exp_zero =>
         -- m = zero, r = one. hm : Reducing zero m'. Same as exp_zero case.
@@ -491,7 +510,7 @@ theorem strict_reducing_wcr_np :
       | sub_zero z => sorry
       | sub_self z => sorry
       | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
-      | add_zero_r z => sorry
+      | add_zero_r z => exact absurd hp (np_add_zero_r_false _)
       | mul_one_l z => exact absurd hr one_reducing_vacuous
       | mul_one_r z => exact absurd hr one_reducing_vacuous
       | mul_zero_l z => exact absurd hr one_reducing_vacuous
@@ -552,28 +571,14 @@ theorem strict_reducing_wcr_np :
       | sub_self _ => exact ⟨_, .refl, .refl⟩
       | cancel_exp_ln _ => sorry  -- overlap: b=ln'(exp'(zero)), c=zero
     | sub_self z => sorry
-    | add_zero_l z =>
-      cases h2 with
-      | node_l _ _ _ hm => sorry
-      | node_r _ _ _ hr => sorry
-      | add_zero_l _ => exact ⟨_, .refl, .refl⟩
-      | add_zero_r _ => exact ⟨_, .refl, .refl⟩
-      | neg_neg _ => exact ⟨_, .refl, .refl⟩
-    | add_zero_r z =>
-      cases h2 with
-      | node_l _ _ _ hm => sorry
-      | node_r _ _ _ hr => sorry
-      | add_zero_r _ => exact ⟨_, .refl, .refl⟩
-      | add_zero_l _ => exact ⟨_, .refl, .refl⟩
-      | sub_self _ => sorry
-      | cancel_exp_ln _ => sorry
-      | neg_neg _ => sorry
+    | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
+    | add_zero_r z => exact absurd hp (np_add_zero_r_false _)
     | mul_one_l z => exact absurd hp (np_mul_one_l_false _)
     | mul_one_r z => exact absurd hp (np_mul_one_r_false _)
     | mul_zero_l z => sorry
     | mul_zero_r z => sorry
     | neg_neg z => exact absurd hp (np_neg_neg_false _)
-    | inv_inv z => sorry
+    | inv_inv z => exact absurd hp (np_inv_inv_false _)
     | ln_mul a_arg b_arg => sorry
     | exp_zero =>
       -- a = exp'(zero) = node zero one. b = one. zero nearly irreducible.
