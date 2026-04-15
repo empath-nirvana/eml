@@ -330,7 +330,30 @@ theorem strict_reducing_wcr_np :
         exact ⟨.node m' r',
           .single (StrictReducing.node_r ⟨hr, fun heq => hne2 (by rw [heq])⟩),
           .single (StrictReducing.node_l ⟨hm, fun heq => hne1 (by rw [heq])⟩)⟩
-      | exp_ln z => sorry
+      | exp_ln z =>
+        -- Symmetric to (h1=exp_ln, h2=node_l): swap b and c.
+        -- hm : Reducing (ln' z) m'. b = node m' one. c = z.
+        cases hm with
+        | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+        | node_r _ _ _ h_inner =>
+          cases h_inner with
+          | node_l _ _ _ h2i =>
+            cases h2i with
+            | node_l _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+            | node_r _ _ z' hz =>
+              refine ⟨z', .single ⟨.exp_ln z', ?_⟩, .single ⟨hz, ?_⟩⟩
+              · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
+              · intro heq; subst heq; exact hne1 rfl
+            | ln_exp _ => exact ⟨_, .refl, .refl⟩
+            | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+            | cancel_ln_exp _ => exact absurd rfl hne1
+          | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | exp_ln _ => exact ⟨_, .refl, .refl⟩
+          | exp_zero => exact ⟨_, .refl, .refl⟩
+          | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
+        | ln_exp _ => exact ⟨_, .refl, .refl⟩
+        | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
+        | cancel_ln_exp _ => exact absurd rfl hne1
       | ln_exp z => exact absurd hm one_reducing_vacuous
       | sub_zero z => sorry
       | sub_self z => sorry
@@ -343,7 +366,18 @@ theorem strict_reducing_wcr_np :
       | neg_neg z => sorry
       | inv_inv z => sorry
       | ln_mul a_arg b_arg => exact absurd hm one_reducing_vacuous
-      | exp_zero => sorry
+      | exp_zero =>
+        -- m = zero, r = one. hm : Reducing zero m'. Same as exp_zero case.
+        cases hm with
+        | node_l _ _ _ h => exact absurd h one_reducing_vacuous
+        | node_r _ _ _ h =>
+          cases h with
+          | node_l _ _ _ h2 =>
+            cases h2 with
+            | node_l _ _ _ h3 => exact absurd h3 one_reducing_vacuous
+            | node_r _ _ _ h3 => exact absurd h3 one_reducing_vacuous
+          | node_r _ _ _ h2 => exact absurd h2 one_reducing_vacuous
+        | cancel_ln_exp _ => exact absurd rfl hne1
       | cancel_exp_ln z => sorry
       | cancel_ln_exp z => sorry
     -- ====== h1 = congruence right ======
