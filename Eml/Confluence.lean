@@ -447,7 +447,26 @@ theorem strict_reducing_wcr_np :
     | neg_neg z => sorry
     | inv_inv z => sorry
     | ln_mul a_arg b_arg => sorry
-    | exp_zero => sorry
+    | exp_zero =>
+      -- a = exp'(zero) = node zero one. b = one. zero nearly irreducible.
+      cases h2 with
+      | node_l _ _ _ hm =>
+        -- hm : Reducing zero m'. zero = node one (node (node one one) one).
+        cases hm with
+        | node_l _ _ _ h => exact absurd h one_reducing_vacuous
+        | node_r _ _ _ h =>
+          -- h : Reducing (node (node one one) one) _. This is exp'(exp'(one)).
+          cases h with
+          | node_l _ _ _ h2 =>
+            -- h2 : Reducing (node one one) _. This is exp'(one), irreducible.
+            cases h2 with
+            | node_l _ _ _ h3 => exact absurd h3 one_reducing_vacuous
+            | node_r _ _ _ h3 => exact absurd h3 one_reducing_vacuous
+          | node_r _ _ _ h2 => exact absurd h2 one_reducing_vacuous
+        | cancel_ln_exp _ => exact absurd rfl hne2
+      | node_r _ _ _ hr => exact absurd hr one_reducing_vacuous
+      | exp_zero => exact ⟨_, .refl, .refl⟩
+      | exp_ln _ => exact ⟨_, .refl, .refl⟩
     | cancel_exp_ln z => sorry
     | cancel_ln_exp z => sorry
 
