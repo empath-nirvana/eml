@@ -1470,7 +1470,140 @@ theorem strict_reducing_wcr_np :
       | add_zero_r _ =>
         -- hmr : z = exp'(neg' zero). NonPartial contradiction.
         exfalso; subst hmr; exact np_add_zero_r_false _ hp
-    | cancel_ln_exp z => sorry
+    | cancel_ln_exp _ =>
+      -- a = node m (exp'(exp' m)), b = zero.
+      -- IMPORTANT: generalize right child first to avoid dependent elimination failure.
+      generalize hmr : exp' (exp' m) = mr at h2 hne2
+      generalize hml : m = ml at h2 hne2
+      cases h2 with
+      | node_l _ c' _ hc =>
+        subst hml; subst hmr
+        -- c = node c' (exp'(exp' m)). Replicate m→c' inside exp'(exp' m) then cancel_ln_exp.
+        -- exp'(exp' m) = node (node m one) one. Path: node_r → node_l → node_l.
+        refine ⟨zero, .refl, .cons ⟨.node_r _ _ _ (.node_l _ _ _ (.node_l _ _ _ hc)), fun heq => ?_⟩ ?_⟩
+        · -- ne: node c' (exp'(exp' m)) ≠ node c' (exp'(exp' c'))
+          have h1 := congrArg (fun | .node _ x => x | x => x) heq
+          have h2 := congrArg (fun | .node x _ => x | x => x) h1
+          have h3 := congrArg (fun | .node x _ => x | x => x) h2
+          -- h3 : m = c'. Use hne2 : node m (exp'(exp' m)) ≠ node c' (exp'(exp' m)).
+          exact hne2 (congrArg (fun x => Eml.node x (exp' (exp' m))) h3)
+        · -- node c' (exp'(exp' c')) →* zero via cancel_ln_exp c' (or already zero)
+          by_cases heq : Eml.node c' (exp' (exp' c')) = zero
+          · exact heq ▸ .refl
+          · exact .single ⟨.cancel_ln_exp _, heq⟩
+      | node_r _ _ c' hc =>
+        subst hml; subst hmr
+        -- c = node m c'. hc : Reducing (exp'(exp' m)) c'.
+        -- exp'(exp' m) = node (exp' m) one = node (node m one) one.
+        -- Case split: go two levels to reach hm : Reducing m _.
+        cases hc with
+        | node_l _ _ _ h_inner =>
+          -- h_inner : Reducing (exp' m) X. c' = exp' X.
+          cases h_inner with
+          | node_l _ _ _ hm =>
+            -- c' = exp'(exp' m'). c = node m (exp'(exp' m')). Replicate m→m' in left + cancel_ln_exp.
+            rename_i m'
+            refine ⟨zero, .refl, .cons ⟨.node_l _ _ _ hm, fun heq => ?_⟩ ?_⟩
+            · -- heq : node m (exp'(exp' m')) = node m' (exp'(exp' m')). Extract: m = m'.
+              have h := congrArg (fun | .node x _ => x | x => x) heq
+              -- h : m = m'. hne2 : node m (exp'(exp' m)) ≠ node m (exp'(exp' m')).
+              exact hne2 (congrArg (fun x => Eml.node m (exp' (exp' x))) h)
+            · by_cases heq : Eml.node m' (exp' (exp' m')) = zero
+              · exact heq ▸ .refl
+              · exact .single ⟨.cancel_ln_exp _, heq⟩
+          | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+          | exp_ln z =>
+            -- m = ln' z. c' = exp' z. c = node (ln' z) (exp' z) = sub' z z → zero.
+            refine ⟨zero, .refl, .single ⟨.sub_self _, ?_⟩⟩
+            · intro heq; have := congrArg (fun | Eml.node (Eml.node _ _) _ => true | _ => false) heq
+              simp [zero, ln', exp'] at this
+          | exp_zero =>
+            -- m = zero. c' = exp' one. c = node zero (exp' one) = sub' one one → zero.
+            refine ⟨zero, .refl, .single ⟨.sub_self one, ?_⟩⟩
+            · intro heq; have := congrArg Eml.leaves heq
+              simp [leaves, exp', zero] at this
+          | cancel_exp_ln _ =>
+            -- Lean substitutes t = one and m = ln' zero (ground). a contains ln' zero.
+            exact absurd (hp _ .refl) (by decide)
+          | mul_one_l _ => exact absurd hp.of_node_r.of_node_l (np_mul_one_l_false _)
+          | mul_one_r _ => exact absurd hp.of_node_r.of_node_l (np_mul_one_r_false _)
+          | mul_zero_l _ => exact absurd hp.of_node_r.of_node_l (np_mul_zero_l_false _)
+          | mul_zero_r _ => exact absurd hp.of_node_r.of_node_l (np_mul_zero_r_false _)
+          | inv_inv _ => exact absurd hp.of_node_r.of_node_l (np_inv_inv_false _)
+        | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
+      | cancel_ln_exp _ => exact ⟨zero, .refl, .refl⟩
+      -- All base rules: leaves contradiction.
+      -- Base rules: each dismissed individually.
+      | exp_ln _ =>
+        -- hmr : exp'(exp' m) = ln' w. First child: node ≠ one.
+        exfalso; have h := congrArg (fun | .node x _ => x | x => x) hmr
+        dsimp only [exp', ln'] at h; exact Eml.noConfusion h
+      | ln_exp _ =>
+        -- After subst+dsimp: node(node(one,one),one) = node(node(one,node(c,one)),one).
+        -- Extract inner right child: one = node c one — different constructors.
+        exfalso; subst hml
+        dsimp only [exp'] at hmr
+        have h1 := congrArg (fun | .node x _ => x | x => x) hmr
+        have h2 := congrArg (fun | .node _ x => x | x => x) h1
+        exact Eml.noConfusion h2
+      | sub_self _ =>
+        -- hml : m = ln' z, hmr : exp'(exp'(ln' z)) = exp' z. Leaves contradiction.
+        exfalso; subst hml
+        have h := congrArg (fun | .node x _ => x | x => x) hmr
+        have := congrArg Eml.leaves h
+        dsimp only [exp', ln'] at this; simp only [Eml.leaves] at this
+        omega
+      | sub_zero _ =>
+        -- hml : m = ln' w. hmr : exp'(exp'(ln' w)) = exp' zero.
+        -- Structural: first child of hmr → node(ln' w, one) = zero. Then dsimp zero,ln' →
+        -- node(node one ..., one) = node one ..., extract left → node one ... = one. noConfusion.
+        exfalso; subst hml
+        dsimp only [exp'] at hmr
+        have h1 := congrArg (fun | .node x _ => x | x => x) hmr
+        dsimp only [zero, ln'] at h1
+        have h2 := congrArg (fun | .node x _ => x | x => x) h1
+        exact Eml.noConfusion h2
+      | cancel_exp_ln _ =>
+        -- hml : m = ln'(ln' w). hmr : exp'(exp'(ln'(ln' w))) = w.
+        -- Leaves: lhs has w.leaves + 8, rhs has w.leaves. Pure Nat omega (≥2).
+        exfalso; subst hml
+        have := congrArg Eml.leaves hmr
+        dsimp only [exp', ln'] at this; simp only [Eml.leaves] at this; omega
+      | add_zero_l _ | neg_neg _ =>
+        -- hml : m = ln' zero. hmr : exp'(exp'(ln' zero)) = exp'(neg' z).
+        -- First child of hmr: node(ln' zero, one) = neg' z. dsimp neg',sub' → rhs has exp' child.
+        -- Right child: one = exp' z = node z one. noConfusion.
+        exfalso; subst hml
+        dsimp only [exp'] at hmr
+        have h1 := congrArg (fun | .node x _ => x | x => x) hmr
+        dsimp only [neg', sub'] at h1
+        have h2 := congrArg (fun | .node _ x => x | x => x) h1
+        dsimp only [exp'] at h2
+        exact Eml.noConfusion h2
+      | add_zero_r _ =>
+        -- hml : m = ln' z. hmr : exp'(exp'(ln' z)) = exp'(neg' zero).
+        -- Same structural approach: extract to one = exp' zero = node zero one. noConfusion.
+        exfalso; subst hml
+        dsimp only [exp'] at hmr
+        have h1 := congrArg (fun | .node x _ => x | x => x) hmr
+        dsimp only [neg', sub'] at h1
+        have h2 := congrArg (fun | .node _ x => x | x => x) h1
+        dsimp only [exp'] at h2
+        exact Eml.noConfusion h2
+      | mul_one_l _ | mul_one_r _ | mul_zero_l _ | mul_zero_r _ | inv_inv _ =>
+        -- hmr : exp'(exp' m) = one. m.leaves + 2 = 1. Impossible.
+        exfalso; have h1 := congrArg Eml.leaves hmr
+        dsimp only [exp'] at h1; simp only [Eml.leaves] at h1; omega
+      | ln_mul a b =>
+        -- hml : m = one. hmr : exp'(exp' one) = node (node one (mul' a b)) one. Leaves contradiction.
+        exfalso; subst hml
+        have := congrArg Eml.leaves hmr
+        dsimp only [exp', mul', add', sub', neg', ln', zero] at this
+        simp only [Eml.leaves] at this
+        have ha := leaves_pos a; have hb := leaves_pos b; omega
+      | exp_zero =>
+        exfalso; have h1 := congrArg Eml.leaves hmr
+        dsimp only [exp', zero] at h1; simp only [Eml.leaves] at h1; omega
 
 /-- **Confluence of the strict reducing system (away from partiality).**
 
