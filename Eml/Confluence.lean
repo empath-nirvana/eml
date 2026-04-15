@@ -575,8 +575,8 @@ theorem strict_reducing_wcr_np :
     | add_zero_r z => exact absurd hp (np_add_zero_r_false _)
     | mul_one_l z => exact absurd hp (np_mul_one_l_false _)
     | mul_one_r z => exact absurd hp (np_mul_one_r_false _)
-    | mul_zero_l z => sorry
-    | mul_zero_r z => sorry
+    | mul_zero_l z => exact absurd hp (np_mul_zero_l_false _)
+    | mul_zero_r z => exact absurd hp (np_mul_zero_r_false _)
     | neg_neg z => exact absurd hp (np_neg_neg_false _)
     | inv_inv z => exact absurd hp (np_inv_inv_false _)
     | ln_mul a_arg b_arg => sorry
