@@ -302,6 +302,100 @@ private theorem NonPartial.of_node_r {m r : Eml} (hp : NonPartial (.node m r)) :
   | false => rfl
   | true => simp [containsLnZero, hc] at h
 
+/-- ln'(zero) contains itself as a subterm. -/
+private theorem containsLnZero_lnzero : containsLnZero (ln' zero) = true := by decide
+
+/-- add'(zero, ln' z) contains ln'(zero) (its left child is ln' zero). -/
+private theorem clz_add_zero_ln (z : Eml) :
+    containsLnZero (add' zero (ln' z)) = true := by
+  show containsLnZero (.node (ln' zero) (exp' (neg' (ln' z)))) = true
+  simp [containsLnZero, containsLnZero_lnzero]
+
+/-- neg'(zero) = node (ln' zero) (exp' zero) contains ln'(zero). -/
+private theorem clz_neg_zero : containsLnZero (neg' zero) = true := by
+  show containsLnZero (.node (ln' zero) (exp' zero)) = true
+  simp [containsLnZero, containsLnZero_lnzero]
+
+/-- exp'(neg' zero) = node (neg' zero) one contains ln'(zero). -/
+private theorem clz_exp_neg_zero : containsLnZero (exp' (neg' zero)) = true := by
+  show containsLnZero (.node (neg' zero) .one) = true
+  simp [containsLnZero, clz_neg_zero]
+
+/-- add'(ln' z, zero) contains ln'(zero) (in the exp'(neg' zero) subterm). -/
+private theorem clz_add_ln_zero (z : Eml) :
+    containsLnZero (add' (ln' z) zero) = true := by
+  show containsLnZero (.node (ln' (ln' z)) (exp' (neg' zero))) = true
+  simp [containsLnZero, clz_exp_neg_zero, Bool.or_true]
+
+/-- **NonPartial (mul' one z) is vacuously false** for all z:
+    mul'(one, z) = exp'(add'(zero, ln' z)) always contains ln'(zero) as a
+    subterm (zero = ln' one, so add'(zero, ...) = sub'(zero, ...) =
+    node (ln' zero) ...). This means any NonPartial hypothesis for
+    mul'(one, z) yields a contradiction, making all WCR cases for
+    mul_one_l trivially true. -/
+private theorem np_mul_one_l_false (z : Eml) : NonPartial (mul' .one z) → False := by
+  intro hp
+  have h := hp _ .refl
+  change containsLnZero (.node (add' zero (ln' z)) .one) = false at h
+  simp [containsLnZero, clz_add_zero_ln] at h
+
+/-- **NonPartial (mul' z one) is vacuously false** for all z:
+    mul'(z, one) = exp'(add'(ln' z, zero)) contains ln'(zero) via the
+    neg'(zero) subterm in add'(ln' z, zero) = sub'(ln' z, neg' zero). -/
+private theorem np_mul_one_r_false (z : Eml) : NonPartial (mul' z .one) → False := by
+  intro hp
+  have h := hp _ .refl
+  change containsLnZero (.node (add' (ln' z) zero) .one) = false at h
+  simp [containsLnZero, clz_add_ln_zero] at h
+
+/-- containsLnZero propagates through left child of node. -/
+private theorem clz_node_l {l r : Eml} (h : containsLnZero l = true) :
+    containsLnZero (.node l r) = true := by
+  simp [containsLnZero, h]
+
+/-- containsLnZero propagates through right child of node. -/
+private theorem clz_node_r {l r : Eml} (h : containsLnZero r = true) :
+    containsLnZero (.node l r) = true := by
+  simp [containsLnZero, h]
+
+/-- add'(ln' zero, ln' z) contains ln'(zero). -/
+private theorem clz_add_lnzero_ln (z : Eml) :
+    containsLnZero (add' (ln' zero) (ln' z)) = true := by
+  -- add' = sub' = node(ln'(ln' zero), exp'(neg'(ln' z))). Left child contains ln'(zero).
+  show containsLnZero (.node (ln' (ln' zero)) _) = true
+  exact clz_node_l (clz_node_r (clz_node_l (clz_node_r containsLnZero_lnzero)))
+
+/-- add'(ln' z, ln' zero) contains ln'(zero). -/
+private theorem clz_add_ln_lnzero (z : Eml) :
+    containsLnZero (add' (ln' z) (ln' zero)) = true := by
+  -- Right child exp'(neg'(ln' zero)) contains ln'(zero) via neg'.
+  show containsLnZero (.node (ln' (ln' z)) (exp' (neg' (ln' zero)))) = true
+  exact clz_node_r (clz_node_l (clz_node_l containsLnZero_lnzero))
+
+/-- mul'(zero, z) contains ln'(zero) — NonPartial is vacuously false. -/
+private theorem np_mul_zero_l_false (z : Eml) : NonPartial (mul' zero z) → False := by
+  intro hp; have h := hp _ .refl
+  change containsLnZero (.node (add' (ln' zero) (ln' z)) .one) = false at h
+  simp [containsLnZero, clz_add_lnzero_ln] at h
+
+/-- mul'(z, zero) contains ln'(zero) — NonPartial is vacuously false. -/
+private theorem np_mul_zero_r_false (z : Eml) : NonPartial (mul' z zero) → False := by
+  intro hp; have h := hp _ .refl
+  change containsLnZero (.node (add' (ln' z) (ln' zero)) .one) = false at h
+  simp [containsLnZero, clz_add_ln_lnzero] at h
+
+/-- add'(zero, z) contains ln'(zero) — NonPartial is vacuously false. -/
+private theorem np_add_zero_l_false (z : Eml) : NonPartial (add' zero z) → False := by
+  intro hp; have h := hp _ .refl
+  change containsLnZero (.node (ln' zero) (exp' (neg' z))) = false at h
+  simp [containsLnZero, containsLnZero_lnzero] at h
+
+/-- neg'(neg' z) contains ln'(zero) — NonPartial is vacuously false. -/
+private theorem np_neg_neg_false (z : Eml) : NonPartial (neg' (neg' z)) → False := by
+  intro hp; have h := hp _ .refl
+  change containsLnZero (.node (ln' zero) (exp' (neg' z))) = false at h
+  simp [containsLnZero, containsLnZero_lnzero] at h
+
 /-! ### §3.2 Main WCR theorem -/
 
 /-- **Local confluence of the strict reducing system (away from partiality).**
@@ -357,13 +451,13 @@ theorem strict_reducing_wcr_np :
       | ln_exp z => exact absurd hm one_reducing_vacuous
       | sub_zero z => sorry
       | sub_self z => sorry
-      | add_zero_l z => sorry
+      | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
       | add_zero_r z => sorry
-      | mul_one_l z => sorry
-      | mul_one_r z => sorry
-      | mul_zero_l z => sorry
-      | mul_zero_r z => sorry
-      | neg_neg z => sorry
+      | mul_one_l z => exact absurd hp (np_mul_one_l_false _)
+      | mul_one_r z => exact absurd hp (np_mul_one_r_false _)
+      | mul_zero_l z => exact absurd hp (np_mul_zero_l_false _)
+      | mul_zero_r z => exact absurd hp (np_mul_zero_r_false _)
+      | neg_neg z => exact absurd hp (np_neg_neg_false _)
       | inv_inv z => sorry
       | ln_mul a_arg b_arg => exact absurd hm one_reducing_vacuous
       | exp_zero =>
@@ -396,13 +490,13 @@ theorem strict_reducing_wcr_np :
       | ln_exp z => sorry
       | sub_zero z => sorry
       | sub_self z => sorry
-      | add_zero_l z => sorry
+      | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
       | add_zero_r z => sorry
       | mul_one_l z => exact absurd hr one_reducing_vacuous
       | mul_one_r z => exact absurd hr one_reducing_vacuous
       | mul_zero_l z => exact absurd hr one_reducing_vacuous
       | mul_zero_r z => exact absurd hr one_reducing_vacuous
-      | neg_neg z => sorry
+      | neg_neg z => exact absurd hp (np_neg_neg_false _)
       | inv_inv z => exact absurd hr one_reducing_vacuous
       | ln_mul a_arg b_arg => sorry
       | exp_zero => exact absurd hr one_reducing_vacuous
@@ -474,11 +568,11 @@ theorem strict_reducing_wcr_np :
       | sub_self _ => sorry
       | cancel_exp_ln _ => sorry
       | neg_neg _ => sorry
-    | mul_one_l z => sorry
-    | mul_one_r z => sorry
+    | mul_one_l z => exact absurd hp (np_mul_one_l_false _)
+    | mul_one_r z => exact absurd hp (np_mul_one_r_false _)
     | mul_zero_l z => sorry
     | mul_zero_r z => sorry
-    | neg_neg z => sorry
+    | neg_neg z => exact absurd hp (np_neg_neg_false _)
     | inv_inv z => sorry
     | ln_mul a_arg b_arg => sorry
     | exp_zero =>
