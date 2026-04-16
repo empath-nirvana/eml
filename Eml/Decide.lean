@@ -258,13 +258,79 @@ private theorem eval_i_pi (ρ : Nat → α) :
   rw [E.mul_one]
 
 /-- i² = -1 (within a fixed ExtExpAlgebra).
-    Uses (iπ)² = i²π² with π² = -L² (pi_squared) and (iπ) = -L (eval_i_pi),
-    giving i²·(-L²) = L², hence i² = -1 via multiplication by inv(L²). -/
+    Uses (iπ)² = i²π² with π² = -L² (pi_squared) and (iπ) = -L (eval_i_pi). -/
 private theorem i_sq_eq (ρ : Nat → α) :
     E.mul (eval ρ i') (eval ρ i') = (E.neg E.one : α) := by
-  sorry -- complex chain of neg_mul, mul_neg, mul_assoc with finiteness guards
-        -- from eval_pi_nz, eval_i_finite; same structure as the old ExpField
-        -- proof but with finiteness bookkeeping. Left as sorry pending cleanup.
+  -- Setup: finiteness witnesses
+  have hpi_fin := eval_pi_finite (α := α) ρ
+  have hpi_nz := eval_pi_nz (α := α) ρ
+  have hi_fin := eval_i_finite (α := α) ρ
+  have hone_fin : Finite (E.one : α) := ⟨E.neg_inf_ne_one.symm, E.pos_inf_ne_one.symm⟩
+  have hno_fin : Finite (E.neg E.one : α) := Finite.neg hone_fin
+  have hno_nz : (E.neg E.one : α) ≠ E.zro := by
+    intro h; have := congrArg E.neg h
+    rw [E.neg_neg, ExtExpAlgebra.neg_zero] at this
+    exact E.one_ne_zro this
+  have hln_fin : Finite (E.ln (E.neg E.one)) := Finite.ln hno_fin hno_nz
+  have hlnsq_fin := Finite.mul hln_fin hln_fin
+  have hisq_fin := Finite.mul hi_fin hi_fin
+  -- Step 1: (I²)(P²) = L² via (IP)² = L² (since IP = -L and (-L)² = L²)
+  have hnln_fin : Finite (E.neg (E.ln (E.neg E.one))) := Finite.neg hln_fin
+  have h1 : E.mul (E.mul (eval ρ i') (eval ρ i'))
+                   (E.mul (eval ρ pi') (eval ρ pi'))
+           = E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one)) := by
+    rw [← mul_sq]
+    rw [eval_i_pi]
+    -- goal: mul(neg L, neg L) = mul L L
+    rw [ExtExpAlgebra.mul_neg hnln_fin hln_fin,
+        ExtExpAlgebra.neg_mul hln_fin hln_fin, E.neg_neg]
+  -- Step 2: substitute π² = -L² (from pi_squared)
+  rw [pi_squared] at h1
+  -- h1 : I² · (-L²) = L²
+  rw [ExtExpAlgebra.mul_neg hisq_fin hlnsq_fin] at h1
+  -- h1 : -(I² · L²) = L²
+  have h2 : E.mul (E.mul (eval ρ i') (eval ρ i'))
+                   (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one)))
+           = E.neg (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one))) := by
+    have := congrArg E.neg h1; rwa [E.neg_neg] at this
+  -- Step 3: L² ≠ 0 (so we can divide by it)
+  have hlnsq_nz : E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one)) ≠ E.zro := by
+    intro heq
+    -- If L² = 0, then applying inv to both sides and canceling gives L = 0,
+    -- which contradicts hln_nz
+    have hln_nz : E.ln (E.neg E.one) ≠ E.zro := by
+      intro hln0
+      have := congrArg E.exp hln0
+      rw [E.exp_ln, E.exp_zero] at this
+      -- this : neg one = one. Then add one one = 0, contradicts two_ne_zro.
+      have : E.add E.one E.one = E.zro := by
+        calc E.add E.one E.one = E.add E.one (E.neg E.one) := by rw [this]
+          _ = E.zro := E.add_neg _ hone_fin.1 hone_fin.2
+      exact E.two_ne_zro this
+    -- Multiply L² = 0 by inv L: inv L · (L · L) = inv L · 0
+    have h := congrArg (E.mul (E.inv (E.ln (E.neg E.one)))) heq
+    rw [E.mul_zero, ← ExtExpAlgebra.mul_assoc,
+        ExtExpAlgebra.inv_mul_cancel hln_fin hln_nz,
+        ExtExpAlgebra.one_mul] at h
+    exact hln_nz h
+  -- Step 4: multiply both sides of h2 by inv(L²)
+  have h3 := congrArg
+    (fun x => E.mul x (E.inv (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one))))) h2
+  simp only at h3
+  -- LHS: (I² · L²) · inv(L²) = I² · (L² · inv(L²)) = I² · 1 = I²
+  rw [ExtExpAlgebra.mul_assoc,
+      ExtExpAlgebra.mul_inv_cancel hlnsq_fin hlnsq_nz,
+      E.mul_one] at h3
+  -- h3 : I² = neg(L²) · inv(L²)
+  -- RHS: -(L²) · inv(L²) = -(L² · inv(L²)) = -(1) = -1
+  have hinv_fin : Finite (E.inv (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one)))) := by
+    rw [E.inv_def]; exact Finite.exp (Finite.neg (Finite.ln hlnsq_fin hlnsq_nz))
+  rw [show E.mul (E.neg (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one))))
+               (E.inv (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one))))
+        = E.neg E.one from by
+        rw [ExtExpAlgebra.neg_mul hlnsq_fin hinv_fin,
+            ExtExpAlgebra.mul_inv_cancel hlnsq_fin hlnsq_nz]] at h3
+  exact h3
 
 end ISqr
 
