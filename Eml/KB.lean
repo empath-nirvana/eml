@@ -22,8 +22,14 @@ namespace Eml
 /-- Lexicographic structural ordering. one < var < node. -/
 def cmp : Eml → Eml → Ordering
   | .one, .one => .eq
+  | .negInf, .negInf => .eq
+  | .posInf, .posInf => .eq
   | .one, _ => .lt
   | _, .one => .gt
+  | .negInf, _ => .lt
+  | _, .negInf => .gt
+  | .posInf, _ => .lt
+  | _, .posInf => .gt
   | .var m, .var n => compare m n
   | .var _, .node _ _ => .lt
   | .node _ _, .var _ => .gt
@@ -38,16 +44,20 @@ abbrev KBSubst := List (Nat × Eml)
 
 def applyKBSubst (σ : KBSubst) : Eml → Eml
   | .one => .one
+  | .negInf => .negInf
+  | .posInf => .posInf
   | .var n => σ.lookup n |>.getD (.var n)
   | .node l r => .node (applyKBSubst σ l) (applyKBSubst σ r)
 
 def occursIn (n : Nat) : Eml → Bool
-  | .one => false
+  | .one | .negInf | .posInf => false
   | .var m => m == n
   | .node l r => occursIn n l || occursIn n r
 
 def shiftVars : Eml → Nat → Eml
   | .one, _ => .one
+  | .negInf, _ => .negInf
+  | .posInf, _ => .posInf
   | .var n, k => .var (n + k)
   | .node l r, k => .node (shiftVars l k) (shiftVars r k)
 
@@ -204,7 +214,7 @@ def replaceAt : Eml → Pos → Eml → Option Eml
 
 /-- All node (non-leaf) positions in a tree. -/
 def nodePositions : Eml → List Pos
-  | .one | .var _ => []
+  | .one | .negInf | .posInf | .var _ => []
   | .node l r =>
     [[]] ++
     (nodePositions l).map (true :: ·) ++
@@ -279,6 +289,8 @@ partial def acNormAdd (t : Eml) : Eml :=
 /-- Bottom-up AC normalization of all subterms. -/
 partial def acNorm : Eml → Eml
   | .one => .one
+  | .negInf => .negInf
+  | .posInf => .posInf
   | .var n => .var n
   | .node l r =>
     let t := Eml.node (acNorm l) (acNorm r)

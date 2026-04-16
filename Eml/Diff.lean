@@ -31,7 +31,7 @@ namespace Eml
     The output is always a valid EML tree. -/
 def diff (t : Eml) (x : Nat := 0) : Eml :=
   match t with
-  | one   => zero
+  | one | negInf | posInf => zero
   | var n => if n == x then one else zero
   | node a b =>
     let da := diff a x

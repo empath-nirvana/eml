@@ -212,7 +212,7 @@ Zero structural unjoinable pairs exist away from partiality. -/
 
 /-- Check if a term contains ln'(zero) as a subterm. -/
 def containsLnZero : Eml → Bool
-  | .one => false
+  | .one | .negInf | .posInf => false
   | .var _ => false
   | .node l r => (Eml.node l r == ln' zero) || containsLnZero l || containsLnZero r
 
@@ -427,6 +427,8 @@ theorem strict_reducing_wcr_np :
   intro a
   induction a with
   | one => intro _ _ _ ⟨h, _⟩; exact absurd h one_reducing_vacuous
+  | negInf => intro _ _ _ ⟨h, _⟩ _; cases h
+  | posInf => intro _ _ _ ⟨h, _⟩ _; cases h
   | var _ => intro _ _ _ ⟨h, _⟩ _; exact absurd h var_reducing_vacuous
   | node m r ihm ihr =>
     intro b c hp ⟨h1, hne1⟩ ⟨h2, hne2⟩
@@ -1710,6 +1712,8 @@ theorem symstar_step_sound {a b : Eml} (h : SymStar Step a b) : SemEq a b := by
 /-- Simultaneous substitution: replace every variable `n` with `σ n`. -/
 def substAll (σ : Nat → Eml) : Eml → Eml
   | .one      => .one
+  | .negInf   => .negInf
+  | .posInf   => .posInf
   | .var n    => σ n
   | .node l r => .node (l.substAll σ) (r.substAll σ)
 
@@ -1717,6 +1721,8 @@ def substAll (σ : Nat → Eml) : Eml → Eml
 theorem substAll_id (t : Eml) : t.substAll (fun n => .var n) = t := by
   induction t with
   | one => rfl
+  | negInf => rfl
+  | posInf => rfl
   | var n => rfl
   | node l r ihl ihr => simp [substAll, ihl, ihr]
 

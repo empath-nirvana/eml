@@ -83,6 +83,8 @@ theorem ground_eval_indep {t : Eml} (h : t.isGround = true)
     (ρ₁ ρ₂ : Nat → α) : eval ρ₁ t = eval ρ₂ t := by
   induction t with
   | one => rfl
+  | negInf => rfl
+  | posInf => rfl
   | var n => simp [isGround] at h
   | node l r ihl ihr =>
     simp only [isGround] at h
