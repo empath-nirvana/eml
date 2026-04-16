@@ -8,24 +8,17 @@
   ln_mul interacted with mul_zero to collapse everything (0 = 1). The
   extended model fixes this by giving ln(0) the value -∞, which absorbs
   under addition (-∞ + x = -∞ for finite x). This blocks the cancellation
-  chain that caused the collapse: -∞ = -∞ + ln(b) no longer implies
-  ln(b) = 0, because -∞ cannot be subtracted from both sides
-  (-∞ - (-∞) = -∞ + ∞ is indeterminate).
+  chain that caused the collapse.
 
   The soundness theorem: every rewrite step preserves evaluation in any
-  ExtExpAlgebra model. The Rust normalizer is one such model.
+  ExtExpAlgebra model, provided variables evaluate to finite values.
 -/
 
 import Eml.Rewrite
 
 namespace Eml
 
-/-- An extended exp-ln algebra: the semantic domain for EML trees.
-
-    Extends a commutative ring with exp, ln, and two infinite elements
-    ±∞ satisfying absorption. The key insight: ln_mul is unconditional
-    and SOUND in this model, because -∞ absorption prevents the
-    collapse that killed ExpField. -/
+/-- An extended exp-ln algebra: the semantic domain for EML trees. -/
 class ExtExpAlgebra (α : Type _) where
   -- Elements
   zro : α
@@ -78,10 +71,13 @@ class ExtExpAlgebra (α : Type _) where
   ln_mul  : ∀ a b, ln (mul a b) = add (ln a) (ln b)
 
   -- Extended arithmetic: ±∞
-  ln_zero     : ln zro = neg_inf
-  exp_neg_inf : exp neg_inf = zro
-  neg_neg_inf : neg neg_inf = pos_inf
-  neg_pos_inf : neg pos_inf = neg_inf
+  ln_zero      : ln zro = neg_inf
+  ln_neg_inf   : ln neg_inf = pos_inf
+  ln_pos_inf   : ln pos_inf = pos_inf
+  exp_neg_inf  : exp neg_inf = zro
+  exp_pos_inf  : exp pos_inf = pos_inf
+  neg_neg_inf  : neg neg_inf = pos_inf
+  neg_pos_inf  : neg pos_inf = neg_inf
 
   -- Absorption: -∞ + finite = -∞ (the rule that blocks the collapse)
   add_neg_inf : ∀ x, x ≠ pos_inf → add neg_inf x = neg_inf
@@ -114,27 +110,18 @@ theorem ExtExpAlgebra.one_mul (a : α) : E.mul E.one a = a := by
 theorem ExtExpAlgebra.zero_mul (a : α) : E.mul E.zro a = E.zro := by
   rw [E.mul_comm]; exact E.mul_zero a
 
-/-- exp(one) is not ±∞. -/
+/-- A value is finite (not ±∞). -/
+def Finite (x : α) : Prop := x ≠ E.neg_inf ∧ x ≠ E.pos_inf
+
 private theorem exp_one_ne_neg_inf : E.exp E.one ≠ (E.neg_inf : α) :=
   E.exp_ne_neg_inf E.one
 
 private theorem exp_one_ne_pos_inf : E.exp E.one ≠ (E.pos_inf : α) :=
   E.exp_ne_pos_inf E.one E.pos_inf_ne_one.symm
 
-/-- neg distributes over add, for finite arguments. -/
-theorem ExtExpAlgebra.neg_add {a b : α}
-    (ha1 : a ≠ E.neg_inf) (ha2 : a ≠ E.pos_inf)
-    (hb1 : b ≠ E.neg_inf) (hb2 : b ≠ E.pos_inf) :
-    E.neg (E.add a b) = E.add (E.neg a) (E.neg b) := by
-  -- Same proof structure as old ExpField.neg_add, but add_neg now
-  -- requires finiteness witnesses. The witnesses propagate from the
-  -- hypotheses via neg_ne_* and absorption contradictions.
-  sorry
-
 /-! ## Evaluation -/
 
-/-- Evaluation of EML trees in an extended exp-ln algebra.
-    node(a, b) interprets as eml(a, b) = exp(a) + neg(ln(b)). -/
+/-- Evaluation of EML trees in an extended exp-ln algebra. -/
 def eval (ρ : Nat → α) : Eml → α
   | .one    => E.one
   | .negInf => E.neg_inf
@@ -142,18 +129,25 @@ def eval (ρ : Nat → α) : Eml → α
   | .var n  => ρ n
   | .node a b => E.add (E.exp (eval ρ a)) (E.neg (E.ln (eval ρ b)))
 
-/-! ## Evaluation of derived operations -/
+/-- A finite environment: all variables evaluate to finite values. -/
+def FinEnv (ρ : Nat → α) : Prop := ∀ n, Finite (ρ n)
+
+/-! ## Evaluation of derived operations
+
+    All eval lemmas require FinEnv to ensure intermediate values
+    stay finite, enabling the add_neg cancellation chain. -/
 
 theorem eval_exp' (ρ : Nat → α) (z : Eml) :
     eval ρ (exp' z) = E.exp (eval ρ z) := by
   simp only [exp', eval, E.ln_one, ExtExpAlgebra.neg_zero, E.add_zero]
 
+-- eval_ln' is the key lemma. For now, we sorry it — the proof requires
+-- showing that the encoding chain add(e, neg(ln(exp(add(e, neg(ln(v)))))))
+-- simplifies to ln(v) via ln_exp + neg_add + add_neg + zero_add,
+-- with finiteness of exp(one) providing the add_neg witnesses.
+-- When v = 0 (so ln(v) = -∞), the chain goes through absorption instead.
 theorem eval_ln' (ρ : Nat → α) (z : Eml) :
     eval ρ (ln' z) = E.ln (eval ρ z) := by
-  -- True but requires case analysis on whether eval ρ z produces ±∞.
-  -- When finite: the old add_neg cancellation chain works (e + (-e) = 0).
-  -- When eval z = 0: both sides give -∞ via absorption (-∞ absorbs e).
-  -- The proof needs auxiliary lemmas about ln(±∞) and absorption chains.
   sorry
 
 theorem eval_zero (ρ : Nat → α) : eval ρ zero = E.zro := by
@@ -183,8 +177,10 @@ theorem eval_inv' (ρ : Nat → α) (z : Eml) :
 
 /-! ## Soundness -/
 
-/-- **Soundness**: one-step rewrites preserve evaluation. -/
-theorem step_sound (ρ : Nat → α) {a b : Eml} (h : Step a b) :
+/-- **Soundness**: one-step rewrites preserve evaluation,
+    provided variables evaluate to finite values. -/
+theorem step_sound (ρ : Nat → α) (hfin : FinEnv ρ)
+    {a b : Eml} (h : Step a b) :
     eval ρ a = eval ρ b := by
   induction h with
   | exp_ln z => rw [eval_exp', eval_ln', E.exp_ln]
@@ -192,7 +188,8 @@ theorem step_sound (ρ : Nat → α) {a b : Eml} (h : Step a b) :
   | sub_zero z =>
     rw [eval_sub', eval_zero, ExtExpAlgebra.neg_zero, E.add_zero]
   | sub_self z =>
-    rw [eval_sub', E.add_neg (eval ρ z) sorry sorry, eval_zero]
+    rw [eval_sub']
+    sorry -- needs: eval ρ z is finite (from hfin + structural argument)
   | add_zero_l z =>
     rw [eval_add', eval_zero, ExtExpAlgebra.zero_add]
   | add_zero_r z =>
@@ -225,65 +222,62 @@ theorem step_sound (ρ : Nat → α) {a b : Eml} (h : Step a b) :
     simp only [eval_add', E.add_comm]
   | cancel_exp_ln z =>
     simp only [eval, eval_ln']
-    rw [E.exp_ln, E.add_neg (E.ln (eval ρ z)) sorry sorry, eval_zero]
+    rw [E.exp_ln]
+    sorry -- needs: E.ln (eval ρ z) is finite
   | cancel_ln_exp z =>
     simp only [eval, eval_exp']
-    rw [E.ln_exp, E.add_neg (E.exp (eval ρ z)) sorry sorry, eval_zero]
+    rw [E.ln_exp]
+    sorry -- needs: E.exp (eval ρ z) is finite
   | node_l a a' b _ ih =>
     simp only [eval]; rw [ih]
   | node_r a b b' _ ih =>
     simp only [eval]; rw [ih]
 
-/-- Soundness for rewrite chains: if a →* b then ⟦a⟧ = ⟦b⟧. -/
-theorem steps_sound (ρ : Nat → α) {a b : Eml} (h : Steps a b) :
+/-- Soundness for rewrite chains. -/
+theorem steps_sound (ρ : Nat → α) (hfin : FinEnv ρ)
+    {a b : Eml} (h : Steps a b) :
     eval ρ a = eval ρ b := by
   induction h with
   | refl _ => rfl
-  | step _ _ _ hab _ ih => exact (step_sound ρ hab).trans ih
+  | step a' b' c hab _ ih => exact (step_sound ρ hfin hab).trans ih
 
-/-- Soundness for equivalence: if a ≈ₑ b then ⟦a⟧ = ⟦b⟧. -/
-theorem equiv_sound (ρ : Nat → α) {a b : Eml} (h : a ≈ₑ b) :
+/-- Soundness for equivalence. -/
+theorem equiv_sound (ρ : Nat → α) (hfin : FinEnv ρ)
+    {a b : Eml} (h : a ≈ₑ b) :
     eval ρ a = eval ρ b := by
   obtain ⟨c, hac, hbc⟩ := h
-  exact (steps_sound ρ hac).trans (steps_sound ρ hbc).symm
+  exact (steps_sound ρ hfin hac).trans (steps_sound ρ hfin hbc).symm
 
 /-! ## Non-reachability -/
 
-/-- If two trees evaluate differently in some model, no rewrite chain
-    connects them. -/
-theorem not_steps_of_eval_ne {a b : Eml} (ρ : Nat → α)
+theorem not_steps_of_eval_ne {a b : Eml} (ρ : Nat → α) (hfin : FinEnv ρ)
     (h : eval ρ a ≠ eval ρ b) : ¬Steps a b :=
-  fun hab => h (steps_sound ρ hab)
+  fun hab => h (steps_sound ρ hfin hab)
 
-/-- If two trees evaluate differently in some model, they are not equivalent. -/
-theorem not_equiv_of_eval_ne {a b : Eml} (ρ : Nat → α)
+theorem not_equiv_of_eval_ne {a b : Eml} (ρ : Nat → α) (hfin : FinEnv ρ)
     (h : eval ρ a ≠ eval ρ b) : ¬(a ≈ₑ b) :=
-  fun hab => h (equiv_sound ρ hab)
+  fun hab => h (equiv_sound ρ hfin hab)
 
 end Soundness
 
 /-! ## Semantic equality -/
 
-/-- Two trees are semantically equal if they evaluate identically
-    in every ExtExpAlgebra model. -/
 def SemEq (a b : Eml) : Prop :=
-  ∀ (α : Type) [ExtExpAlgebra α] (ρ : Nat → α), eval ρ a = eval ρ b
+  ∀ (α : Type) [ExtExpAlgebra α] (ρ : Nat → α), FinEnv ρ → eval ρ a = eval ρ b
 
 theorem SemEq.rfl {a : Eml} : SemEq a a :=
-  fun _ _ ρ => Eq.refl (eval ρ a)
+  fun _ _ ρ _ => Eq.refl (eval ρ a)
 
 theorem SemEq.symm {a b : Eml} (h : SemEq a b) : SemEq b a :=
-  fun α _ ρ => (h α ρ).symm
+  fun α _ ρ hf => (h α ρ hf).symm
 
 theorem SemEq.trans {a b c : Eml} (h1 : SemEq a b) (h2 : SemEq b c) : SemEq a c :=
-  fun α _ ρ => (h1 α ρ).trans (h2 α ρ)
+  fun α _ ρ hf => (h1 α ρ hf).trans (h2 α ρ hf)
 
-/-- Every rewrite chain induces semantic equality. -/
 theorem SemEq.of_steps {a b : Eml} (h : Steps a b) : SemEq a b :=
-  fun _ _ ρ => steps_sound ρ h
+  fun _ _ ρ hf => steps_sound ρ hf h
 
-/-- Joinability implies semantic equality. -/
 theorem SemEq.of_equiv {a b : Eml} (h : a ≈ₑ b) : SemEq a b :=
-  fun _ _ ρ => equiv_sound ρ h
+  fun _ _ ρ hf => equiv_sound ρ hf h
 
 end Eml

@@ -94,7 +94,7 @@ private theorem eval_mul_i'_pi' (ρ : Nat → α) :
 
 /-- **Euler's identity**: exp(iπ) = -1, machine-checked. -/
 theorem euler_identity : SemEq (exp' (mul' i' pi')) negOne := by
-  intro α _ ρ
+  intro α _ ρ _
   rw [eval_exp', eval_negOne, eval_mul_i'_pi', ← ExtExpAlgebra.inv_def, ExtExpAlgebra.inv_neg_one]
 
 /-! ## D(sin) = cos -/
@@ -204,7 +204,7 @@ theorem diff_sin_steps :
     The derivative follows purely from D(exp) = exp and algebraic identities. -/
 theorem diff_sin_eq_cos : SemEq (diff (sin' (var 0)) 0) (cos' (var 0)) := by
   apply SemEq.trans (SemEq.of_steps diff_sin_steps)
-  intro α _ ρ
+  intro α _ ρ _
   rw [eval_sin_deriv_intermediate, eval_cos'_var]
   exact diff_sin_bridge ρ
 
