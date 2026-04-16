@@ -147,6 +147,41 @@ theorem ExtExpAlgebra.one_mul (a : α) : E.mul E.one a = a := by
 theorem ExtExpAlgebra.zero_mul (a : α) : E.mul E.zro a = E.zro := by
   rw [E.mul_comm]; exact E.mul_zero a
 
+/-- neg distributes over add for finite arguments.
+    Key lemma used in eval_ln' and many downstream proofs. -/
+theorem ExtExpAlgebra.neg_add {a b : α}
+    (ha : Finite a) (hb : Finite b) :
+    E.neg (E.add a b) = E.add (E.neg a) (E.neg b) := by
+  -- Show add(a,b) is finite (for add_neg later)
+  have hab : Finite (E.add a b) := E.add_finite a b ha.1 ha.2 hb.1 hb.2
+  -- neg(add(a,b)) is the unique z such that add(add(a,b), z) = 0
+  -- We show add(neg a, neg b) satisfies this.
+  suffices h : E.add (E.add a b) (E.add (E.neg a) (E.neg b)) = E.zro by
+    -- From a + (-a) = 0 and uniqueness of additive inverse:
+    calc E.neg (E.add a b)
+        = E.add E.zro (E.neg (E.add a b)) := (ExtExpAlgebra.zero_add _).symm
+      _ = E.add (E.add (E.add (E.neg a) (E.neg b)) (E.add a b))
+              (E.neg (E.add a b)) := by
+          rw [E.add_comm (E.add (E.neg a) _), h, ExtExpAlgebra.zero_add]
+      _ = E.add (E.add (E.neg a) (E.neg b))
+              (E.add (E.add a b) (E.neg (E.add a b))) := by
+          rw [E.add_assoc]
+      _ = E.add (E.add (E.neg a) (E.neg b)) E.zro := by
+          rw [E.add_neg _ hab.1 hab.2]
+      _ = E.add (E.neg a) (E.neg b) := E.add_zero _
+  -- Prove: (a+b) + ((-a)+(-b)) = 0
+  calc E.add (E.add a b) (E.add (E.neg a) (E.neg b))
+      = E.add a (E.add b (E.add (E.neg a) (E.neg b))) := by rw [E.add_assoc]
+    _ = E.add a (E.add (E.add b (E.neg a)) (E.neg b)) := by
+        rw [← E.add_assoc b (E.neg a) (E.neg b)]
+    _ = E.add a (E.add (E.add (E.neg a) b) (E.neg b)) := by
+        rw [E.add_comm b (E.neg a)]
+    _ = E.add a (E.add (E.neg a) (E.add b (E.neg b))) := by
+        rw [E.add_assoc (E.neg a) b (E.neg b)]
+    _ = E.add a (E.add (E.neg a) E.zro) := by rw [E.add_neg b hb.1 hb.2]
+    _ = E.add a (E.neg a) := by rw [E.add_zero]
+    _ = E.zro := E.add_neg a ha.1 ha.2
+
 /-! ## Finite closure lemmas -/
 
 theorem Finite.add {a b : α} (ha : Finite a) (hb : Finite b) :
@@ -187,8 +222,11 @@ theorem eval_exp' (ρ : Nat → α) (z : Eml) :
 
 theorem eval_ln' (ρ : Nat → α) (z : Eml) :
     eval ρ (ln' z) = E.ln (eval ρ z) := by
-  sorry -- True unconditionally; needs case analysis on whether eval z is
-        -- finite (add_neg chain) or infinite (absorption chain).
+  simp only [ln', exp', eval]
+  rw [E.ln_one, ExtExpAlgebra.neg_zero, E.add_zero, E.ln_exp]
+  -- Goal: add(exp(1), neg(add(exp(1), neg(ln(v))))) = ln(v)
+  -- where v = eval ρ z
+  sorry
 
 theorem eval_zero (ρ : Nat → α) : eval ρ zero = E.zro := by
   unfold zero; rw [eval_ln']; exact E.ln_one
