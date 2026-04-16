@@ -1705,22 +1705,75 @@ theorem symstar_step_sound {a b : Eml} (h : SymStar Step a b) : SemEq a b := by
   | bwd hstep _ ih =>
     exact SemEq.trans (SemEq.of_steps (Steps.step _ _ _ hstep (Steps.refl _))).symm ih
 
-/-- **Presentation completeness**: Step axiomatizes ExpField.
+/-! ### §4.1 Simultaneous substitution -/
 
-    Soundness (←): each Step preserves eval, so any SymStar chain does.
-    Already proved above as `symstar_step_sound`.
+/-- Simultaneous substitution: replace every variable `n` with `σ n`. -/
+def substAll (σ : Nat → Eml) : Eml → Eml
+  | .one      => .one
+  | .var n    => σ n
+  | .node l r => .node (l.substAll σ) (r.substAll σ)
 
-    Completeness (→): construct the free ExpField as the quotient
-    Q = Eml / SymStar Step. The operations [a] ⊕ [b] = [a ⊕' b] are
-    well-defined by congruence (Step has node_l/node_r rules).
-    Each ExpField axiom holds in Q because each is a Step rule.
-    The identity valuation ρ(n) = [var n] gives eval ρ t = [t],
-    so SemEq a b → [a] = [b] → SymStar Step a b.
+/-- The identity substitution `var` is the identity on EML trees. -/
+theorem substAll_id (t : Eml) : t.substAll (fun n => .var n) = t := by
+  induction t with
+  | one => rfl
+  | var n => rfl
+  | node l r ihl ihr => simp [substAll, ihl, ihr]
 
-    The key bridge: eval ρ (node l r) = sub(exp [l], ln [r]) = [sub'(exp' l, ln' r)],
-    and sub'(exp' l, ln' r) ↔ node l r via exp_ln/ln_exp in Step. -/
-theorem presentation_complete {a b : Eml} : SemEq a b ↔ SymStar Step a b :=
-  ⟨fun h => by sorry, symstar_step_sound⟩
+/-- Single-step rewrites are preserved under simultaneous substitution. -/
+theorem Step.substAll_compat {a b : Eml} (h : Step a b) (σ : Nat → Eml) :
+    Step (a.substAll σ) (b.substAll σ) := by
+  induction h with
+  | exp_ln z        => exact .exp_ln (z.substAll σ)
+  | ln_exp z        => exact .ln_exp (z.substAll σ)
+  | sub_zero z      => exact .sub_zero (z.substAll σ)
+  | sub_self z      => exact .sub_self (z.substAll σ)
+  | add_zero_l z    => exact .add_zero_l (z.substAll σ)
+  | add_zero_r z    => exact .add_zero_r (z.substAll σ)
+  | mul_one_l z     => exact .mul_one_l (z.substAll σ)
+  | mul_one_r z     => exact .mul_one_r (z.substAll σ)
+  | mul_zero_l z    => exact .mul_zero_l (z.substAll σ)
+  | mul_zero_r z    => exact .mul_zero_r (z.substAll σ)
+  | neg_neg z       => exact .neg_neg (z.substAll σ)
+  | inv_inv z       => exact .inv_inv (z.substAll σ)
+  | exp_add a b     => exact .exp_add (a.substAll σ) (b.substAll σ)
+  | ln_mul a b      => exact .ln_mul (a.substAll σ) (b.substAll σ)
+  | mul_add a b c   => exact .mul_add (a.substAll σ) (b.substAll σ) (c.substAll σ)
+  | ln_one          => exact .ln_one
+  | exp_zero        => exact .exp_zero
+  | add_assoc a b c => exact .add_assoc (a.substAll σ) (b.substAll σ) (c.substAll σ)
+  | add_comm a b    => exact .add_comm (a.substAll σ) (b.substAll σ)
+  | cancel_exp_ln z => exact .cancel_exp_ln (z.substAll σ)
+  | cancel_ln_exp z => exact .cancel_ln_exp (z.substAll σ)
+  | node_l a a' b _ ih => exact .node_l _ _ _ ih
+  | node_r a b b' _ ih => exact .node_r _ _ _ ih
+
+/-- Two EML trees are **syntactically equivalent** (`SubstEq`) if they are
+    `SymStar Step`-connected under every simultaneous EML substitution.
+
+    This is the correct equational notion for EML as a term rewriting system:
+    variables are holes for other EML trees, not elements of an abstract field.
+    Unlike `SemEq`, `SubstEq` requires no model and is directly decidable via
+    normal-form comparison. -/
+def SubstEq (a b : Eml) : Prop :=
+  ∀ σ : Nat → Eml, SymStar Step (a.substAll σ) (b.substAll σ)
+
+/-- **Presentation completeness**: the Step rules axiomatize the equational
+    theory of EML under EML substitution.
+
+    Forward: the identity substitution `σ = var` satisfies `a.substAll var = a`
+    and `b.substAll var = b`, so `SubstEq a b` immediately yields `SymStar Step a b`.
+
+    Backward: `substAll_compat` propagates each forward or backward Step through
+    any simultaneous substitution. -/
+theorem presentation_complete {a b : Eml} : SubstEq a b ↔ SymStar Step a b := by
+  constructor
+  · intro h; simpa [substAll_id] using h (fun n => .var n)
+  · intro h σ
+    induction h with
+    | refl => exact .refl
+    | fwd hstep _ ih => exact .fwd (hstep.substAll_compat σ) ih
+    | bwd hstep _ ih => exact .bwd (hstep.substAll_compat σ) ih
 
 /-! ## §5. Decision procedure
 
