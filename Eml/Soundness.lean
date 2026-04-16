@@ -46,7 +46,8 @@ class ExtExpAlgebra (α : Type _) where
   exp : α → α
   ln  : α → α
 
-  -- ±∞ are distinct from finite values
+  -- Distinctness of constants
+  one_ne_zro : one ≠ zro
   neg_inf_ne_zro : neg_inf ≠ zro
   neg_inf_ne_one : neg_inf ≠ one
   pos_inf_ne_zro : pos_inf ≠ zro
