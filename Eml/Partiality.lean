@@ -169,11 +169,9 @@ theorem richardson_counterexample
       eval ρ (sub' (ln' (var 0)) (ln' (var 0))) ≠ eval ρ zero := by
   refine ⟨fun _ => E.zro, fun _ => ⟨E.neg_inf_ne_zro.symm, E.pos_inf_ne_zro.symm⟩,
           Step.sub_self (ln' (var 0)), ?_⟩
-  -- eval LHS = add(eval(ln'(var 0)), neg(eval(ln'(var 0))))
-  --          = add(ln(0), neg(ln(0))) = add(-∞, +∞)
-  -- eval RHS = eval(zero) = 0
-  -- These differ by h_ne.
-  sorry
+  rw [eval_sub', eval_ln', eval_zero]
+  simp only [eval, E.ln_zero, E.neg_neg_inf]
+  exact h_ne
 
 /-- The decidability barrier, informally stated:
 
