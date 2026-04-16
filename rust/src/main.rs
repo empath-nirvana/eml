@@ -387,8 +387,13 @@ fn norm_exp(z: Eml) -> Eml {
     if z == Eml::NegInf { return Eml::zero(); }
     // exp(+∞) → +∞
     if z == Eml::PosInf { return Eml::PosInf; }
-    // exp(ln(w)) → w
-    if let Some(w) = z.as_ln() { return w.clone(); }
+    // exp(ln(w)) → w — GUARDED at w = ±∞ to maintain consistency with
+    // ln_neg_inf (ln(-∞) = +∞) and exp_pos_inf (exp(+∞) = +∞).
+    // Without guard: exp(ln(-∞)) would give -∞ via this rule but +∞ via
+    // the ln_neg_inf + exp_pos_inf chain. Guard blocks the wrong answer.
+    if let Some(w) = z.as_ln() {
+        if !w.is_infinite() { return w.clone(); }
+    }
     // exp(0) → 1
     if z.is_zero() { return Eml::One; }
     // exp(neg(ln(w))) = inv(w) — redirect to norm_inv
@@ -1839,6 +1844,25 @@ fn main() {
     println!("  Trig: sin, cos, tan, π, i (from Euler's formula)");
     println!("  Extended: ln(0)=-∞, exp(-∞)=0, -∞+finite=-∞");
     println!("  Singularity: -∞+∞ (indeterminate, left unreduced)");
+    println!();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // exp_ln guard demonstration (KB analysis found this was needed)
+    // ═══════════════════════════════════════════════════════════════════════
+    println!("--- exp_ln guard at ±∞ (KB-discovered soundness fix) ---");
+    println!("  Unguarded exp_ln: exp(ln(z)) = z is inconsistent at z = -∞");
+    println!("  because ln(-∞) = +∞ and exp(+∞) = +∞ (not -∞).");
+    println!("  Rust norm_exp now guards: exp(ln(w)) fires only when w ≠ ±∞.");
+    println!();
+    let expr = Eml::exp(Eml::ln(Eml::NegInf));
+    let path_a = normalize(&expr);
+    let path_b = norm_exp(Eml::ln(Eml::NegInf));
+    println!("  Path A (normalize): exp(ln(-∞)) = {}", path_a);
+    println!("  Path B (norm_exp on raw ln(-∞)): = {}", path_b);
+    // Path A gives +∞ (via bottom-up: ln(-∞)=+∞ then exp(+∞)=+∞)
+    // Path B stays unreduced (guard blocks exp_ln on ±∞ argument)
+    // Both are consistent with the ln_neg_inf + exp_pos_inf axioms.
+    println!();
 }
 
 // ── Test suite ─────────────────────────────────────────────────────────────
