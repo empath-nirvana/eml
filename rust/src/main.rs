@@ -1852,8 +1852,11 @@ fn main() {
 //     - conditional_ln_decomposition: smart AC cancellation
 //     - Q(i) ground evaluation:     exact arithmetic for ground terms
 //     - semantic_eq:                variable-term coefficient matching
-//   Notable difference: Lean's ln_mul is unconditional; Rust gates it on
-//   non-ground terms only (correct — avoids the ln(0) triviality).
+//   Extended ±∞ model (not yet in Lean):
+//     - ln(0) → -∞, exp(-∞) → 0, inv(0) → +∞
+//     - -∞ + finite → -∞ (absorption)
+//     - -∞ + ∞ left unreduced (indeterminate)
+//     - mul_zero and sub_self guarded at ±∞
 
 #[cfg(test)]
 mod tests {
@@ -2561,5 +2564,139 @@ mod gap_survey {
         // sin(x) = cos(x - π/2)  — phase shift identity
         let cos_shifted = Eml::cos(Eml::sub(x(), Eml::mul(Eml::pi(), Eml::half())));
         println!("sin(x) eq cos(x-π/2): {}", seq(&Eml::sin(x()), &cos_shifted));
+    }
+
+    // ── Extended ±∞ model ─────────────────────────────────────────────────
+    //
+    // These tests verify the extended arithmetic where ln(0) = -∞ and
+    // exp(-∞) = 0. The key property: the normalizer is CONSISTENT — no
+    // expression normalizes to two different values via different paths.
+    // The single indeterminate form -∞ + ∞ corresponds to classical
+    // indeterminate forms (0·∞, 0/0, ∞-∞, etc.).
+
+    #[test] fn ext_ln_zero_is_neg_inf() {
+        assert_eq!(normalize(&Eml::ln(Eml::zero())), Eml::NegInf);
+    }
+
+    #[test] fn ext_exp_neg_inf_is_zero() {
+        assert!(eq(&Eml::exp(Eml::NegInf), &Eml::zero()));
+    }
+
+    #[test] fn ext_exp_pos_inf_is_pos_inf() {
+        assert_eq!(normalize(&Eml::exp(Eml::PosInf)), Eml::PosInf);
+    }
+
+    #[test] fn ext_inv_zero_is_pos_inf() {
+        assert_eq!(normalize(&Eml::inv(Eml::zero())), Eml::PosInf);
+    }
+
+    #[test] fn ext_inv_pos_inf_is_zero() {
+        assert!(eq(&Eml::inv(Eml::PosInf), &Eml::zero()));
+    }
+
+    #[test] fn ext_inv_neg_inf_is_zero() {
+        assert!(eq(&Eml::inv(Eml::NegInf), &Eml::zero()));
+    }
+
+    #[test] fn ext_neg_neg_inf_is_pos_inf() {
+        assert_eq!(normalize(&Eml::neg(Eml::NegInf)), Eml::PosInf);
+    }
+
+    #[test] fn ext_neg_pos_inf_is_neg_inf() {
+        assert_eq!(normalize(&Eml::neg(Eml::PosInf)), Eml::NegInf);
+    }
+
+    #[test] fn ext_neg_inf_absorption() {
+        // -∞ + x = -∞ for finite x
+        assert_eq!(normalize(&Eml::add(Eml::NegInf, x())), Eml::NegInf);
+        assert_eq!(normalize(&Eml::add(x(), Eml::NegInf)), Eml::NegInf);
+    }
+
+    #[test] fn ext_pos_inf_absorption() {
+        // +∞ + x = +∞ for finite x
+        assert_eq!(normalize(&Eml::add(Eml::PosInf, x())), Eml::PosInf);
+        assert_eq!(normalize(&Eml::add(x(), Eml::PosInf)), Eml::PosInf);
+    }
+
+    #[test] fn ext_zero_times_finite_is_zero() {
+        // 0 * x = 0 still works (x is finite)
+        assert!(eq(&Eml::mul(Eml::zero(), x()), &Eml::zero()));
+        assert!(eq(&Eml::mul(x(), Eml::zero()), &Eml::zero()));
+    }
+
+    #[test] fn ext_zero_times_inv_zero_indeterminate() {
+        // 0 * (1/0) is indeterminate — NOT 0, NOT 1
+        let result = normalize(&Eml::mul(Eml::zero(), Eml::inv(Eml::zero())));
+        assert_ne!(result, normalize(&Eml::zero()));
+        assert_ne!(result, Eml::One);
+    }
+
+    #[test] fn ext_both_paths_agree() {
+        // The original inconsistency: 0*(1/0) via mul vs via exp(ln(0)+(-ln(0)))
+        // Both must give the same result now.
+        let via_mul = normalize(&Eml::mul(Eml::zero(), Eml::inv(Eml::zero())));
+        let via_exp = normalize(&Eml::exp(Eml::add(
+            Eml::ln(Eml::zero()), Eml::neg(Eml::ln(Eml::zero())))));
+        assert_eq!(via_mul, via_exp);
+    }
+
+    #[test] fn ext_sub_self_inf_indeterminate() {
+        // -∞ - (-∞) is indeterminate (= -∞ + ∞)
+        let result = normalize(&Eml::sub(Eml::NegInf, Eml::NegInf));
+        assert_ne!(result, normalize(&Eml::zero()));
+    }
+
+    // KB critical pairs: every overlap between extended rules and existing rules joins
+
+    #[test] fn kb_exp_ln_zero() {
+        // exp(ln(0)): via exp_ln → 0, via ln_zero+exp_neg_inf → 0
+        assert!(eq(&Eml::exp(Eml::ln(Eml::zero())), &Eml::zero()));
+    }
+
+    #[test] fn kb_ln_exp_neg_inf() {
+        // ln(exp(-∞)): via ln_exp → -∞, via exp_neg_inf+ln_zero → -∞
+        assert_eq!(normalize(&Eml::ln(Eml::exp(Eml::NegInf))), Eml::NegInf);
+    }
+
+    #[test] fn kb_ln_mul_zero_l() {
+        // ln(0*x): via mul_zero+ln → -∞, via ln_mul+absorption → -∞
+        assert_eq!(normalize(&Eml::ln(Eml::mul(Eml::zero(), x()))), Eml::NegInf);
+    }
+
+    #[test] fn kb_ln_mul_zero_r() {
+        assert_eq!(normalize(&Eml::ln(Eml::mul(x(), Eml::zero()))), Eml::NegInf);
+    }
+
+    #[test] fn kb_exp_add_neg_inf() {
+        // exp(-∞ + x) = exp(-∞) = 0 (via absorption)
+        assert!(eq(&Eml::exp(Eml::add(Eml::NegInf, Eml::ln(x()))), &Eml::zero()));
+    }
+
+    #[test] fn kb_inv_inv_zero() {
+        // inv(inv(0)) = inv(+∞) = 0
+        assert!(eq(&Eml::inv(Eml::inv(Eml::zero())), &Eml::zero()));
+    }
+
+    #[test] fn kb_neg_neg_neg_inf() {
+        // neg(neg(-∞)) = -∞
+        assert_eq!(normalize(&Eml::neg(Eml::neg(Eml::NegInf))), Eml::NegInf);
+    }
+
+    #[test] fn kb_indirect_zero_consistent() {
+        // (x-x)*(1/(x-x)) = 0*(1/0) — indirect zero gives same indeterminate
+        let xx = Eml::sub(x(), x());
+        let indirect = normalize(&Eml::mul(xx.clone(), Eml::inv(xx)));
+        let direct = normalize(&Eml::mul(Eml::zero(), Eml::inv(Eml::zero())));
+        assert_eq!(indirect, direct);
+    }
+
+    #[test] fn kb_zero_zero_is_zero() {
+        assert!(eq(&Eml::mul(Eml::zero(), Eml::zero()), &Eml::zero()));
+    }
+
+    #[test] fn kb_basics_still_work() {
+        assert!(eq(&Eml::exp(Eml::zero()), &Eml::One));
+        assert!(eq(&Eml::ln(Eml::One), &Eml::zero()));
+        assert!(eq(&Eml::add(Eml::zero(), Eml::zero()), &Eml::zero()));
     }
 }
