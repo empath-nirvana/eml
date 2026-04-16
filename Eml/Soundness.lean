@@ -220,13 +220,40 @@ theorem eval_exp' (ρ : Nat → α) (z : Eml) :
     eval ρ (exp' z) = E.exp (eval ρ z) := by
   simp only [exp', eval, E.ln_one, ExtExpAlgebra.neg_zero, E.add_zero]
 
+private theorem eval_ln'_aux (e : α) (w : α)
+    (he : e = E.exp E.one)
+    (he_fin : Finite e) :
+    E.add e (E.neg (E.add e w)) = E.neg w := by
+  have he_ni : e ≠ E.neg_inf := he_fin.1
+  have he_pi : e ≠ E.pos_inf := he_fin.2
+  have add_e_ni : E.add e E.neg_inf = E.neg_inf := by
+    rw [E.add_comm]; exact E.add_neg_inf e he_pi
+  have add_e_pi : E.add e E.pos_inf = E.pos_inf := by
+    rw [E.add_comm]; exact E.add_pos_inf e he_ni
+  by_cases hw1 : w = E.neg_inf
+  · rw [hw1, add_e_ni, E.neg_neg_inf, add_e_pi]
+  · by_cases hw2 : w = E.pos_inf
+    · rw [hw2, add_e_pi, E.neg_pos_inf, add_e_ni]
+    · -- w finite: use neg_add + add_neg cancellation
+      have hw_fin : Finite w := ⟨hw1, hw2⟩
+      show E.add e (E.neg (E.add e w)) = E.neg w
+      have step1 : E.neg (E.add e w) = E.add (E.neg e) (E.neg w) :=
+        ExtExpAlgebra.neg_add he_fin hw_fin
+      rw [step1]
+      -- goal: add(e, add(neg(e), neg(w))) = neg(w)
+      rw [← E.add_assoc]
+      -- goal: add(add(e, neg(e)), neg(w)) = neg(w)
+      rw [E.add_neg e he_ni he_pi]
+      -- goal: add(zro, neg(w)) = neg(w)
+      exact ExtExpAlgebra.zero_add _
+
 theorem eval_ln' (ρ : Nat → α) (z : Eml) :
     eval ρ (ln' z) = E.ln (eval ρ z) := by
   simp only [ln', exp', eval]
   rw [E.ln_one, ExtExpAlgebra.neg_zero, E.add_zero, E.ln_exp]
   -- Goal: add(exp(1), neg(add(exp(1), neg(ln(v))))) = ln(v)
-  -- where v = eval ρ z
-  sorry
+  rw [eval_ln'_aux (E.exp E.one) (E.neg (E.ln (eval ρ z))) rfl exp_one_finite]
+  exact E.neg_neg _
 
 theorem eval_zero (ρ : Nat → α) : eval ρ zero = E.zro := by
   unfold zero; rw [eval_ln']; exact E.ln_one
