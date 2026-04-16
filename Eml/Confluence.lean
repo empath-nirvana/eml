@@ -420,7 +420,15 @@ private theorem np_add_zero_r_false (z : Eml) : NonPartial (add' z zero) → Fal
 /-- **Local confluence of the strict reducing system (away from partiality).**
 
     Proved by structural induction on `a`, case-splitting on the two
-    Reducing steps. -/
+    Reducing steps.
+
+    NOTE: Contains 6 internal sorry sites for edge cases when subterm
+    results of Reducing steps are ±∞ atoms. In those cases, the
+    cancel_ln_exp guard blocks the usual joining step, and the
+    WCR claim requires either additional Reducing rules for atoms
+    or a stricter NonPartial predicate that excludes them. These
+    edge cases don't affect the 12/18 sites that have structural
+    proofs (where the subterm is manifestly a node). -/
 theorem strict_reducing_wcr_np :
     ∀ a b c, NonPartial a → StrictReducing a b → StrictReducing a c →
     ∃ d, Star StrictReducing b d ∧ Star StrictReducing c d := by
