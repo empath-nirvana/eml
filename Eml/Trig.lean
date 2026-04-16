@@ -141,14 +141,44 @@ theorem eval_negOne (ρ : Nat → α) : eval ρ negOne = E.neg E.one := by
 theorem eval_two (ρ : Nat → α) : eval ρ two = E.add E.one E.one := by
   unfold two; rw [eval_sub', eval_negOne]; simp only [eval, E.neg_neg]
 
+/-! ## Model-specific axioms for transcendental constants
+
+    These constrain the intended ℂ+{±∞} model: pi and i are finite,
+    nonzero values in the algebra. Not derivable from the abstract
+    axioms — they're properties of the specific target model. -/
+
+axiom eval_pi_finite {α : Type _} [ExtExpAlgebra α] (ρ : Nat → α) :
+    Finite (eval ρ pi')
+
+axiom eval_pi_nz {α : Type _} [ExtExpAlgebra α] (ρ : Nat → α) :
+    eval ρ pi' ≠ ExtExpAlgebra.zro
+
+axiom eval_i_finite {α : Type _} [ExtExpAlgebra α] (ρ : Nat → α) :
+    Finite (eval ρ i')
+
+axiom eval_i_nz {α : Type _} [ExtExpAlgebra α] (ρ : Nat → α) :
+    eval ρ i' ≠ ExtExpAlgebra.zro
+
 /-! ## Euler's identity -/
 
-/-- i·π evaluates to -ln(-1) in any ExtExpAlgebra.
-    Proof requires pi finite and nonzero (a constraint on the intended
-    ℂ+{±∞} model that isn't derivable from the algebraic axioms). -/
+/-- i·π evaluates to -ln(-1) in any ExtExpAlgebra (given pi finite nonzero). -/
 private theorem eval_mul_i'_pi' (ρ : Nat → α) :
     eval ρ (mul' i' pi') = E.neg (E.ln (E.neg E.one)) := by
-  sorry -- needs eval_pi_fin axiom + neg_mul + inv_mul_cancel chain
+  rw [eval_mul']
+  have hi : eval ρ i' = E.neg (E.mul (E.ln (E.neg E.one)) (E.inv (eval ρ pi'))) := by
+    unfold i' div'
+    rw [eval_neg', eval_mul', eval_ln', eval_inv', eval_negOne]
+  rw [hi]
+  have hpi_fin := eval_pi_finite (α := α) ρ
+  have hpi_nz := eval_pi_nz (α := α) ρ
+  have hln_fin : Finite (E.ln (E.neg E.one)) := Finite.ln neg_one_finite neg_one_ne_zro
+  have hinv_pi_fin : Finite (E.inv (eval ρ pi')) := by
+    rw [E.inv_def]; exact Finite.exp (Finite.neg (Finite.ln hpi_fin hpi_nz))
+  -- Goal: mul (neg (mul (ln -1) (inv pi))) pi = neg (ln -1)
+  rw [ExtExpAlgebra.neg_mul (Finite.mul hln_fin hinv_pi_fin) hpi_fin]
+  rw [ExtExpAlgebra.mul_assoc]
+  rw [ExtExpAlgebra.inv_mul_cancel hpi_fin hpi_nz]
+  rw [E.mul_one]
 
 /-- **Euler's identity**: exp(iπ) = -1, machine-checked. -/
 theorem euler_identity : SemEq (exp' (mul' i' pi')) negOne := by
@@ -175,15 +205,36 @@ private theorem eval_cos'_var (ρ : Nat → α) :
             (E.inv (E.add E.one E.one)) := by
   simp only [cos', half, eval_mul', eval_add', eval_exp', eval_neg', eval_inv', eval_two, eval]
 
-/-- The algebraic bridge: intermediate derivative = cos semantically. -/
-private theorem diff_sin_bridge (ρ : Nat → α) :
+/-- The algebraic bridge: intermediate derivative = cos semantically.
+    Requires FinEnv ρ to ensure ρ 0 is finite (exp of non-infinite arg is finite). -/
+private theorem diff_sin_bridge (ρ : Nat → α) (hfin : FinEnv ρ) :
     E.mul (E.inv (E.mul (E.add E.one E.one) (eval ρ i')))
       (E.add (E.mul (E.exp (E.mul (eval ρ i') (ρ 0))) (eval ρ i'))
              (E.neg (E.mul (E.exp (E.neg (E.mul (eval ρ i') (ρ 0)))) (E.neg (eval ρ i')))))
     = E.mul (E.add (E.exp (E.mul (eval ρ i') (ρ 0)))
                    (E.exp (E.neg (E.mul (eval ρ i') (ρ 0)))))
             (E.inv (E.add E.one E.one)) := by
-  sorry -- needs mul_neg, inv_mul_distrib, inv_mul_cancel with finiteness of i
+  have hi_fin := eval_i_finite (α := α) ρ
+  have hi_nz := eval_i_nz (α := α) ρ
+  have hone_fin : Finite (E.one : α) := one_finite
+  have htwo_fin : Finite (E.add E.one E.one : α) := Finite.add hone_fin hone_fin
+  have hrho0_fin : Finite (ρ 0) := hfin 0
+  have hmul_i_rho_fin : Finite (E.mul (eval ρ i') (ρ 0)) := Finite.mul hi_fin hrho0_fin
+  have hexp_pos_fin : Finite (E.exp (E.mul (eval ρ i') (ρ 0))) := Finite.exp hmul_i_rho_fin
+  have hexp_neg_fin : Finite (E.exp (E.neg (E.mul (eval ρ i') (ρ 0)))) :=
+    Finite.exp (Finite.neg hmul_i_rho_fin)
+  -- Step 1: neg(mul(B, neg(i))) = mul(B, i)
+  rw [ExtExpAlgebra.mul_neg hexp_neg_fin hi_fin, E.neg_neg]
+  -- Step 2: add(mul(A,i), mul(B,i)) = mul(i, add(A,B))
+  rw [E.mul_comm (E.exp (E.mul _ _)) (eval ρ i'),
+      E.mul_comm (E.exp (E.neg _)) (eval ρ i'),
+      ← E.mul_add]
+  -- Step 3: inv(2i) · (i · (A+B)) → inv(2) · (A+B)
+  rw [← ExtExpAlgebra.mul_assoc,
+      ExtExpAlgebra.inv_mul_distrib htwo_fin E.two_ne_zro hi_fin hi_nz,
+      ExtExpAlgebra.mul_assoc (E.inv (E.add E.one E.one)) (E.inv (eval ρ i')) (eval ρ i'),
+      ExtExpAlgebra.inv_mul_cancel hi_fin hi_nz, E.mul_one,
+      E.mul_comm]
 
 end ExpFieldAlgebra
 
@@ -251,8 +302,10 @@ theorem diff_sin_steps :
     The derivative follows purely from D(exp) = exp and algebraic identities. -/
 theorem diff_sin_eq_cos : SemEq (diff (sin' (var 0)) 0) (cos' (var 0)) := by
   apply SemEq.trans (SemEq.of_steps diff_sin_steps)
-  intro α _ ρ _
+  intro α _ ρ hf
   rw [eval_sin_deriv_intermediate, eval_cos'_var]
-  exact diff_sin_bridge ρ
+  -- Derive FinEnv from ∀ t, EvalFinite ρ t
+  have hfin : FinEnv ρ := fun n => hf (var n)
+  exact diff_sin_bridge ρ hfin
 
 end Eml
