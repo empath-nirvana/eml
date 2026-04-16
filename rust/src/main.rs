@@ -14,6 +14,10 @@ pub enum Eml {
     One,
     Var(u32),
     Node(Box<Eml>, Box<Eml>),
+    /// -∞: the value of ln(0). Absorbs under addition with finite values.
+    NegInf,
+    /// +∞: the value of 1/0 = exp(+∞). Equal to neg(-∞).
+    PosInf,
 }
 
 impl Eml {
@@ -151,14 +155,14 @@ impl Eml {
 
     fn leaves(&self) -> usize {
         match self {
-            Eml::One | Eml::Var(_) => 1,
+            Eml::One | Eml::Var(_) | Eml::NegInf | Eml::PosInf => 1,
             Eml::Node(l, r) => l.leaves() + r.leaves(),
         }
     }
 
     fn subst(&self, x: u32, s: &Eml) -> Eml {
         match self {
-            Eml::One => Eml::One,
+            Eml::One | Eml::NegInf | Eml::PosInf => self.clone(),
             Eml::Var(n) => if *n == x { s.clone() } else { self.clone() },
             Eml::Node(l, r) => Eml::node(l.subst(x, s), r.subst(x, s)),
         }
@@ -168,7 +172,7 @@ impl Eml {
 
     fn has_var(&self, x: u32) -> bool {
         match self {
-            Eml::One => false,
+            Eml::One | Eml::NegInf | Eml::PosInf => false,
             Eml::Var(n) => *n == x,
             Eml::Node(l, r) => l.has_var(x) || r.has_var(x),
         }
@@ -176,11 +180,16 @@ impl Eml {
 
     fn is_ground(&self) -> bool {
         match self {
-            Eml::One => true,
+            Eml::One | Eml::NegInf | Eml::PosInf => true,
             Eml::Var(_) => false,
             Eml::Node(l, r) => l.is_ground() && r.is_ground(),
         }
     }
+
+    fn is_infinite(&self) -> bool {
+        matches!(self, Eml::NegInf | Eml::PosInf)
+    }
+
 
     // ── Differentiation ────────────────────────────────────────────────
     // Derived-form diff: pattern-match on mul, inv, add, neg, sub, exp, ln
@@ -296,6 +305,8 @@ impl fmt::Display for Eml {
         if let Some(z) = self.as_exp() { return write!(f, "exp({z})"); }
         match self {
             Eml::One => write!(f, "1"),
+            Eml::NegInf => write!(f, "-∞"),
+            Eml::PosInf => write!(f, "+∞"),
             Eml::Var(n) => {
                 const NAMES: [&str; 4] = ["x", "y", "z", "w"];
                 if (*n as usize) < NAMES.len() {
@@ -313,6 +324,8 @@ impl fmt::Debug for Eml {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Eml::One => write!(f, "𝟏"),
+            Eml::NegInf => write!(f, "-∞"),
+            Eml::PosInf => write!(f, "+∞"),
             Eml::Var(n) => write!(f, "v{n}"),
             Eml::Node(l, r) => write!(f, "⟨{l:?}|{r:?}⟩"),
         }
@@ -355,7 +368,7 @@ pub fn normalize(t: &Eml) -> Eml {
         return norm_exp(normalize(z));
     }
     match t {
-        Eml::One => Eml::One,
+        Eml::One | Eml::NegInf | Eml::PosInf => t.clone(),
         Eml::Var(n) => Eml::Var(*n),
         Eml::Node(l, r) => {
             // Genuine raw eml(l, r) — not any derived form
@@ -370,6 +383,10 @@ pub fn normalize(t: &Eml) -> Eml {
 // Each norm_* assumes its arguments are already normalized.
 
 fn norm_exp(z: Eml) -> Eml {
+    // exp(-∞) → 0
+    if z == Eml::NegInf { return Eml::zero(); }
+    // exp(+∞) → +∞
+    if z == Eml::PosInf { return Eml::PosInf; }
     // exp(ln(w)) → w
     if let Some(w) = z.as_ln() { return w.clone(); }
     // exp(0) → 1
@@ -384,6 +401,12 @@ fn norm_exp(z: Eml) -> Eml {
 }
 
 fn norm_ln(z: Eml) -> Eml {
+    // ln(0) → -∞
+    if z.is_zero() { return Eml::NegInf; }
+    // ln(+∞) → +∞
+    if z == Eml::PosInf { return Eml::PosInf; }
+    // ln(-∞) → +∞ (ln(|x|) → ∞ as x → -∞; branch cut gives +∞ + iπ but we keep +∞)
+    if z == Eml::NegInf { return Eml::PosInf; }
     // ln(exp(w)) → w
     if let Some(w) = z.as_exp() { return w.clone(); }
     // ln(1) → 0
@@ -406,14 +429,17 @@ fn norm_ln(z: Eml) -> Eml {
 fn norm_sub(a: Eml, b: Eml) -> Eml {
     if b.is_zero() { return a; }          // a - 0 → a
     if a.is_zero() { return norm_neg(b); } // 0 - b → -b
-    if a == b { return Eml::zero(); }      // a - a → 0
+    // a - a → 0, but NOT for ±∞ (∞ - ∞ is indeterminate)
+    if a == b && !a.is_infinite() { return Eml::zero(); }
     // Always reduce sub to add(a, neg(b)) — ensures norm_mul can distribute
     norm_add(a, norm_neg(b))
 }
 
 fn norm_neg(z: Eml) -> Eml {
-    if let Some(w) = z.as_neg() { return w.clone(); }  // -(-w) → w
-    if z.is_zero() { return Eml::zero(); }              // -(0) → 0
+    if z == Eml::NegInf { return Eml::PosInf; }         // -(-∞) → +∞
+    if z == Eml::PosInf { return Eml::NegInf; }         // -(+∞) → -∞
+    if let Some(w) = z.as_neg() { return w.clone(); }   // -(-w) → w
+    if z.is_zero() { return Eml::zero(); }               // -(0) → 0
     // neg(a + b) → neg(a) + neg(b) — distribute, so AC cancellation sees atoms
     if let Some((a, b)) = z.as_add() {
         return norm_add(norm_neg(a.clone()), norm_neg(b.clone()));
@@ -422,6 +448,19 @@ fn norm_neg(z: Eml) -> Eml {
 }
 
 fn norm_add(a: Eml, b: Eml) -> Eml {
+    // ±∞ absorption (but -∞ + ∞ is indeterminate — leave unreduced)
+    if a == Eml::NegInf {
+        return if b == Eml::PosInf { Eml::add(a, b) } else { Eml::NegInf };
+    }
+    if a == Eml::PosInf {
+        return if b == Eml::NegInf { Eml::add(a, b) } else { Eml::PosInf };
+    }
+    if b == Eml::NegInf {
+        return if a == Eml::PosInf { Eml::add(a, b) } else { Eml::NegInf };
+    }
+    if b == Eml::PosInf {
+        return if a == Eml::NegInf { Eml::add(a, b) } else { Eml::PosInf };
+    }
     if a.is_zero() { return b; }
     if b.is_zero() { return a; }
     if let Some(inner) = b.as_neg() {
@@ -436,8 +475,9 @@ fn norm_add(a: Eml, b: Eml) -> Eml {
 fn norm_mul(a: Eml, b: Eml) -> Eml {
     if a == Eml::One { return b; }
     if b == Eml::One { return a; }
-    if a.is_zero() { return Eml::zero(); }
-    if b.is_zero() { return Eml::zero(); }
+    // 0 * x → 0, but 0 * ±∞ is indeterminate (0 · ∞)
+    if a.is_zero() && !b.is_infinite() { return Eml::zero(); }
+    if b.is_zero() && !a.is_infinite() { return Eml::zero(); }
     // Integer multiplication — before distribution so 2*3 → 6 directly
     if let (Some(na), Some(nb)) = (a.as_nat(), b.as_nat()) {
         return normalize(&Eml::of_nat(na * nb));
@@ -471,6 +511,10 @@ fn norm_mul(a: Eml, b: Eml) -> Eml {
 }
 
 fn norm_inv(z: Eml) -> Eml {
+    // inv(0) → +∞  (1/0 = ∞)
+    if z.is_zero() { return Eml::PosInf; }
+    // inv(±∞) → 0
+    if z.is_infinite() { return Eml::zero(); }
     if let Some(w) = z.as_inv() { return w.clone(); }  // inv(inv(w)) → w
     if z == Eml::One { return Eml::One; }
     // inv(neg(a)) → neg(inv(a))  — sound by ExpField.inv_def + neg_mul
@@ -531,6 +575,16 @@ fn ac_normalize_add(a: Eml, b: Eml) -> Eml {
     flatten_add(&a, &mut terms);
     flatten_add(&b, &mut terms);
     terms.retain(|t| !t.is_zero());
+
+    // If any term is ±∞, the whole sum absorbs to that infinity
+    // (unless both +∞ and -∞ are present — indeterminate)
+    let has_neg_inf = terms.iter().any(|t| *t == Eml::NegInf);
+    let has_pos_inf = terms.iter().any(|t| *t == Eml::PosInf);
+    if has_neg_inf && has_pos_inf {
+        return Eml::add(Eml::NegInf, Eml::PosInf); // indeterminate
+    }
+    if has_neg_inf { return Eml::NegInf; }
+    if has_pos_inf { return Eml::PosInf; }
 
     // Cancel inverse pairs: a + (-a) → remove both
     let mut cancelled = vec![false; terms.len()];
@@ -1553,11 +1607,238 @@ fn main() {
         &Eml::two());
     println!();
 
+    println!("--- Adversarial: indirect zero in ln ---");
+    // Try to sneak zero past the normalizer via indirect construction
+
+    // 1. ln(x - x) -- sub_self gives zero, does ln see it?
+    let ln_x_minus_x = Eml::ln(Eml::sub(x.clone(), x.clone()));
+    let ln_zero_direct = Eml::ln(Eml::zero());
+    println!("  ln(x-x)            = {}", normalize(&ln_x_minus_x));
+    println!("  ln(0)              = {}", normalize(&ln_zero_direct));
+    println!("  ln(x-x) == ln(0)?  {}", if normalize(&ln_x_minus_x) == normalize(&ln_zero_direct) { "YES" } else { "NO" });
+
+    // 2. ln(0 * x) -- does mul_zero fire before ln sees it?
+    let ln_zero_x = Eml::ln(Eml::mul(Eml::zero(), x.clone()));
+    println!("  ln(0*x)            = {}", normalize(&ln_zero_x));
+    println!("  ln(0*x) == ln(0)?  {}", if normalize(&ln_zero_x) == normalize(&ln_zero_direct) { "YES" } else { "NO" });
+
+    // 3. The collapse test: does ln(0) + ln(x) == ln(0) ?
+    // (This is what the trivial theory says)
+    let ln0_plus_lnx = Eml::add(Eml::ln(Eml::zero()), Eml::ln(x.clone()));
+    let ln0 = Eml::ln(Eml::zero());
+    println!("  ln(0)+ln(x)        = {}", normalize(&ln0_plus_lnx));
+    println!("  ln(0)              = {}", normalize(&ln0));
+    println!("  ln(0)+ln(x)==ln(0)?{}", if normalize(&ln0_plus_lnx) == normalize(&ln0) { " YES" } else { " NO" });
+
+    // 4. The real collapse: can we derive 0 == 1?
+    println!("  0 == 1?            {}", if normalize(&Eml::zero()) == normalize(&Eml::One) { "YES" } else { "NO" });
+
+    // 5. exp(ln(0)) -- should this be 0 or blow up?
+    let exp_ln_0 = Eml::exp(Eml::ln(Eml::zero()));
+    println!("  exp(ln(0))         = {}", normalize(&exp_ln_0));
+    println!("  exp(ln(0)) == 0?   {}", if normalize(&exp_ln_0) == normalize(&Eml::zero()) { "YES" } else { "NO" });
+
+    // 6. Try the full collapse chain:
+    // ln(mul(zero, exp(a))) should give ln(0) via mul_zero
+    // but also add(ln(0), ln(exp(a))) = add(ln(0), a) via ln_mul+ln_exp
+    // Does the normalizer agree on both paths?
+    let a = Eml::Var(2);
+    let path1 = Eml::ln(Eml::mul(Eml::zero(), Eml::exp(a.clone())));
+    println!("  ln(0*exp(z))       = {}", normalize(&path1));
+
+    // 7. 0 * (1/0) -- the known non-confluence point
+    let zero_times_inv_zero = Eml::mul(Eml::zero(), Eml::inv(Eml::zero()));
+    println!("  0*(1/0)            = {}", normalize(&zero_times_inv_zero));
+    println!("  0*(1/0) == 0?      {}", if normalize(&zero_times_inv_zero) == normalize(&Eml::zero()) { "YES" } else { "NO" });
+    println!("  0*(1/0) == 1?      {}", if normalize(&zero_times_inv_zero) == normalize(&Eml::One) { "YES" } else { "NO" });
+
+    // 8. Subtle: (x - x) * y -- zero constructed indirectly, then multiplied
+    let indirect_zero_times_y = Eml::mul(Eml::sub(x.clone(), x.clone()), y.clone());
+    println!("  (x-x)*y            = {}", normalize(&indirect_zero_times_y));
+    println!("  (x-x)*y == 0?      {}", if normalize(&indirect_zero_times_y) == normalize(&Eml::zero()) { "YES" } else { "NO" });
+
+    // 9. ln((x-x)*y) -- the sneaky one. Does sub_self fire inside mul,
+    //    then mul_zero, then ln sees zero? Or does ln see the product first?
+    let ln_indirect = Eml::ln(Eml::mul(Eml::sub(x.clone(), x.clone()), y.clone()));
+    println!("  ln((x-x)*y)        = {}", normalize(&ln_indirect));
+    println!("  ln((x-x)*y)==ln(0)?{}", if normalize(&ln_indirect) == normalize(&ln_zero_direct) { " YES" } else { " NO" });
+
+    // 10. Can we get inconsistency? Two things that should be different
+    //     but the normalizer might confuse due to ln(0) propagation?
+    //     ln(0) is opaque, so ln(0) + a and ln(0) + b should differ if a ≠ b
+    let t1 = Eml::add(Eml::ln(Eml::zero()), x.clone());
+    let t2 = Eml::add(Eml::ln(Eml::zero()), y.clone());
+    println!("  ln(0)+x            = {}", normalize(&t1));
+    println!("  ln(0)+y            = {}", normalize(&t2));
+    println!("  ln(0)+x==ln(0)+y?  {}", if normalize(&t1) == normalize(&t2) { "YES (BUG!)" } else { "NO (good)" });
+    println!();
+
+    println!("--- Adversarial: consistency probes ---");
+    // If exp(ln(0)) = 0, and 0*(1/0) = 0, can we derive contradictions?
+
+    // exp(ln(0)) = 0, but ln(0) is opaque.
+    // What about exp(ln(0) + ln(x))? If ln distributes: = exp(ln(0*x)) = exp(ln(0)) = 0
+    // But also exp(ln(0) + ln(x)) = exp(ln(0)) * exp(ln(x)) = 0 * x = 0
+    // So this should be 0 either way. Is it?
+    let e1 = Eml::exp(Eml::add(Eml::ln(Eml::zero()), Eml::ln(x.clone())));
+    println!("  exp(ln(0)+ln(x))   = {}", normalize(&e1));
+    println!("  == 0?              {}", if normalize(&e1) == normalize(&Eml::zero()) { "YES" } else { "NO" });
+    println!("  == x?              {}", if normalize(&e1) == normalize(&x) { "YES" } else { "NO" });
+
+    // What about exp(ln(x) + ln(0))?  Same thing, different order
+    let e2 = Eml::exp(Eml::add(Eml::ln(x.clone()), Eml::ln(Eml::zero())));
+    println!("  exp(ln(x)+ln(0))   = {}", normalize(&e2));
+    println!("  == 0?              {}", if normalize(&e2) == normalize(&Eml::zero()) { "YES" } else { "NO" });
+
+    // 0 * x via the exp/ln encoding directly (not using mul constructor)
+    // mul(a,b) = exp(ln(a) + ln(b)), so mul(0,x) = exp(ln(0) + ln(x))
+    // The normalizer should give 0 here (same as 0*x)
+    println!("  0*x                = {}", normalize(&Eml::mul(Eml::zero(), x.clone())));
+
+    // exp(ln(0)) * x -- should be 0 * x = 0
+    let e3 = Eml::mul(Eml::exp(Eml::ln(Eml::zero())), x.clone());
+    println!("  exp(ln(0))*x       = {}", normalize(&e3));
+    println!("  == 0?              {}", if normalize(&e3) == normalize(&Eml::zero()) { "YES" } else { "NO" });
+
+    // THE BIG TEST: does the normalizer respect that 0*(1/0) could be 1?
+    // inv(0) = exp(-ln(0)). If exp(ln(0)) = 0, then:
+    // 0 * inv(0) = 0 * exp(-ln(0))
+    // = exp(ln(0) + (-ln(0))) = exp(0) = 1   <-- via exp_add path
+    // But normalizer says 0*(1/0) = 0         <-- via mul_zero path
+    // Are there other ways to reach 1 through this?
+    let inv_zero = Eml::inv(Eml::zero());
+    let product = Eml::mul(Eml::zero(), inv_zero.clone());
+    let via_exp = Eml::exp(Eml::add(Eml::ln(Eml::zero()), Eml::neg(Eml::ln(Eml::zero()))));
+    println!("  0*(1/0)            = {}", normalize(&product));
+    println!("  exp(ln0+(-ln0))    = {}", normalize(&via_exp));
+    println!("  exp(ln0+(-ln0))==1?{}", if normalize(&via_exp) == normalize(&Eml::One) { " YES" } else { " NO" });
+    println!("  exp(ln0+(-ln0))==0?{}", if normalize(&via_exp) == normalize(&Eml::zero()) { " YES" } else { " NO" });
+    println!();
+
+    println!("--- KB critical pair sanity check (extended ±∞ rules) ---");
+    let mut kb_pass = 0;
+    let mut kb_fail = 0;
+    let inf_n = Eml::NegInf;
+    let inf_p = Eml::PosInf;
+
+    // Helper: check that two expressions normalize to the same thing
+    let mut kb = |name: &str, a: &Eml, b: &Eml| {
+        let na = normalize(a);
+        let nb = normalize(b);
+        let ok = na == nb;
+        if !ok {
+            println!("  FAIL {name}: {na} ≠ {nb}");
+            kb_fail += 1;
+        } else {
+            kb_pass += 1;
+        }
+    };
+
+    // 1. exp_ln × ln_zero: exp(ln(0)) — via exp_ln→0, via ln→-∞ then exp→0
+    kb("exp(ln(0))=0", &Eml::exp(Eml::ln(Eml::zero())), &Eml::zero());
+
+    // 2. ln_exp × exp_neg_inf: ln(exp(-∞)) — via ln_exp→-∞, via exp→0 then ln→-∞
+    kb("ln(exp(-∞))=-∞", &Eml::ln(Eml::exp(inf_n.clone())), &inf_n);
+
+    // 3. ln_mul × mul_zero_l: ln(0*x) — via mul_zero→ln(0)→-∞, via ln_mul→ln(0)+ln(x)→-∞
+    kb("ln(0*x)=-∞", &Eml::ln(Eml::mul(Eml::zero(), x.clone())), &inf_n);
+
+    // 4. ln_mul × mul_zero_r: ln(x*0)
+    kb("ln(x*0)=-∞", &Eml::ln(Eml::mul(x.clone(), Eml::zero())), &inf_n);
+
+    // 5. exp_add × add_neg_inf: exp(-∞ + a) — via absorption→exp(-∞)→0
+    kb("exp(-∞+x)=0", &Eml::exp(Eml::add(inf_n.clone(), Eml::ln(x.clone()))), &Eml::zero());
+
+    // 6. mul_zero × encoding: 0*x via mul vs via exp(ln(0)+ln(x))
+    kb("0*x=0", &Eml::mul(Eml::zero(), x.clone()), &Eml::zero());
+
+    // 7. inv(0) consistent paths
+    kb("inv(0)=+∞", &Eml::inv(Eml::zero()), &inf_p);
+
+    // 8. inv(+∞)=0
+    kb("inv(+∞)=0", &Eml::inv(inf_p.clone()), &Eml::zero());
+
+    // 9. inv(inv(0))=0: inv(+∞)=0
+    kb("inv(inv(0))=0", &Eml::inv(Eml::inv(Eml::zero())), &Eml::zero());
+
+    // 10. neg(-∞)=+∞
+    kb("neg(-∞)=+∞", &Eml::neg(inf_n.clone()), &inf_p);
+
+    // 11. neg(+∞)=-∞
+    kb("neg(+∞)=-∞", &Eml::neg(inf_p.clone()), &inf_n);
+
+    // 12. neg(neg(-∞))=-∞
+    kb("neg(neg(-∞))=-∞", &Eml::neg(Eml::neg(inf_n.clone())), &inf_n);
+
+    // 13. 0*(1/0) = indeterminate = exp(-∞ + ∞) — both paths
+    let zero_inv_zero = Eml::mul(Eml::zero(), Eml::inv(Eml::zero()));
+    let exp_inf_sum = Eml::exp(Eml::add(inf_n.clone(), inf_p.clone()));
+    kb("0*(1/0)=exp(-∞+∞)", &zero_inv_zero, &exp_inf_sum);
+
+    // 14. ln(0)+ln(x) = -∞ (absorption)
+    kb("ln(0)+ln(x)=-∞", &Eml::add(Eml::ln(Eml::zero()), Eml::ln(x.clone())), &inf_n);
+
+    // 15. exp(-∞)=0
+    kb("exp(-∞)=0", &Eml::exp(inf_n.clone()), &Eml::zero());
+
+    // 16. exp(+∞)=+∞
+    kb("exp(+∞)=+∞", &Eml::exp(inf_p.clone()), &inf_p);
+
+    // 17. ln(0*x) = ln(0) via both paths
+    kb("ln(0*x)=ln(0)", &Eml::ln(Eml::mul(Eml::zero(), x.clone())),
+       &Eml::ln(Eml::zero()));
+
+    // 18. 0*0=0 (no infinity involved)
+    kb("0*0=0", &Eml::mul(Eml::zero(), Eml::zero()), &Eml::zero());
+
+    // 19. sub_self(-∞) should NOT be 0 — should be indeterminate
+    let sub_inf = Eml::sub(inf_n.clone(), inf_n.clone());
+    let add_inf = Eml::add(inf_n.clone(), inf_p.clone());
+    kb("-∞-(-∞)=-∞+∞", &sub_inf, &add_inf);
+
+    // 20. (x-x)*(1/(x-x)) = 0*inv(0) = indeterminate
+    let xx = Eml::sub(x.clone(), x.clone());
+    kb("(x-x)*(1/(x-x))=indet",
+       &Eml::mul(xx.clone(), Eml::inv(xx.clone())),
+       &Eml::mul(Eml::zero(), Eml::inv(Eml::zero())));
+
+    // 21. exp(ln(0)+(-ln(0))) = exp(-∞+∞) — the original inconsistency, now consistent
+    kb("exp(ln0+(-ln0))=exp(-∞+∞)",
+       &Eml::exp(Eml::add(Eml::ln(Eml::zero()), Eml::neg(Eml::ln(Eml::zero())))),
+       &exp_inf_sum);
+
+    // 22. mul_one × infinity: 1*(-∞) = -∞? But mul encoding goes through ln(1)+ln(-∞)...
+    kb("1*x=x (finite)", &Eml::mul(Eml::One, x.clone()), &x);
+
+    // 23. mul(-∞, x) — what happens? Through encoding: exp(ln(-∞)+ln(x))=exp(+∞+ln(x))=exp(+∞)=+∞?
+    //     Mathematically -∞ * positive = -∞, but our "mul" encodes through exp/ln.
+    //     Let's just check consistency:
+    let mul_inf_x = normalize(&Eml::mul(inf_n.clone(), x.clone()));
+    println!("  INFO -∞*x = {mul_inf_x}");
+
+    // 24. add_assoc with infinity: (-∞+a)+b = -∞+(a+b) — both -∞
+    kb("(-∞+x)+y=-∞",
+       &Eml::add(Eml::add(inf_n.clone(), x.clone()), y.clone()),
+       &inf_n);
+
+    // 25. 0+0=0 (sanity)
+    kb("0+0=0", &Eml::add(Eml::zero(), Eml::zero()), &Eml::zero());
+
+    // 26. exp(0)=1 still works
+    kb("exp(0)=1", &Eml::exp(Eml::zero()), &Eml::One);
+
+    // 27. ln(1)=0 still works
+    kb("ln(1)=0", &Eml::ln(Eml::One), &Eml::zero());
+
+    println!("  KB sanity: {kb_pass} pass, {kb_fail} fail");
+    println!();
+
     println!("--- Summary ---");
-    println!("  Core: 1 type, 1 constant, 1 binary operator");
+    println!("  Core: 1 type, 2 constants (1, ±∞), 1 binary operator");
     println!("  Derived: exp, ln, +, -, *, /, neg, inv, integers, D");
     println!("  Trig: sin, cos, tan, π, i (from Euler's formula)");
-    println!("  Normalization: transcendental TRS + AC + distribution");
+    println!("  Extended: ln(0)=-∞, exp(-∞)=0, -∞+finite=-∞");
+    println!("  Singularity: -∞+∞ (indeterminate, left unreduced)");
 }
 
 // ── Test suite ─────────────────────────────────────────────────────────────
