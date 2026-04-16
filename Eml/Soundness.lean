@@ -87,6 +87,14 @@ class ExtExpAlgebra (α : Type _) where
   add_neg_inf : ∀ x, x ≠ pos_inf → add neg_inf x = neg_inf
   add_pos_inf : ∀ x, x ≠ neg_inf → add pos_inf x = pos_inf
 
+  -- Finiteness of exp: exp never produces -∞, and only produces +∞ from +∞
+  exp_ne_neg_inf : ∀ x, exp x ≠ neg_inf
+  exp_ne_pos_inf : ∀ x, x ≠ pos_inf → exp x ≠ pos_inf
+
+  -- Finiteness of neg: neg only maps infinities to infinities
+  neg_ne_neg_inf : ∀ x, x ≠ pos_inf → neg x ≠ neg_inf
+  neg_ne_pos_inf : ∀ x, x ≠ neg_inf → neg x ≠ pos_inf
+
 section Soundness
 
 variable {α : Type _} [E : ExtExpAlgebra α]
@@ -106,6 +114,23 @@ theorem ExtExpAlgebra.one_mul (a : α) : E.mul E.one a = a := by
 theorem ExtExpAlgebra.zero_mul (a : α) : E.mul E.zro a = E.zro := by
   rw [E.mul_comm]; exact E.mul_zero a
 
+/-- exp(one) is not ±∞. -/
+private theorem exp_one_ne_neg_inf : E.exp E.one ≠ (E.neg_inf : α) :=
+  E.exp_ne_neg_inf E.one
+
+private theorem exp_one_ne_pos_inf : E.exp E.one ≠ (E.pos_inf : α) :=
+  E.exp_ne_pos_inf E.one E.pos_inf_ne_one.symm
+
+/-- neg distributes over add, for finite arguments. -/
+theorem ExtExpAlgebra.neg_add {a b : α}
+    (ha1 : a ≠ E.neg_inf) (ha2 : a ≠ E.pos_inf)
+    (hb1 : b ≠ E.neg_inf) (hb2 : b ≠ E.pos_inf) :
+    E.neg (E.add a b) = E.add (E.neg a) (E.neg b) := by
+  -- Same proof structure as old ExpField.neg_add, but add_neg now
+  -- requires finiteness witnesses. The witnesses propagate from the
+  -- hypotheses via neg_ne_* and absorption contradictions.
+  sorry
+
 /-! ## Evaluation -/
 
 /-- Evaluation of EML trees in an extended exp-ln algebra.
@@ -123,14 +148,10 @@ theorem eval_exp' (ρ : Nat → α) (z : Eml) :
 
 theorem eval_ln' (ρ : Nat → α) (z : Eml) :
     eval ρ (ln' z) = E.ln (eval ρ z) := by
-  simp only [ln', exp', eval]
-  rw [E.ln_one, ExtExpAlgebra.neg_zero, E.add_zero, E.ln_exp]
-  -- Need: add(exp(neg(ln(eval z))), neg(ln(one))) simplifies
-  -- After ln_exp: we have add(neg(eval z), neg(add(eval z, neg(eval z))))... no
-  -- Let me trace: ln'(z) = node one (node (node one z) one)
-  -- eval = add(exp(1), neg(ln(node(node one z) one)))
-  -- = add(exp(1), neg(ln(exp(add(exp(1), neg(ln(z))))))
-  -- Hmm, this needs the same chain as the original. Let me just try the old proof.
+  -- True but requires case analysis on whether eval ρ z produces ±∞.
+  -- When finite: the old add_neg cancellation chain works (e + (-e) = 0).
+  -- When eval z = 0: both sides give -∞ via absorption (-∞ absorbs e).
+  -- The proof needs auxiliary lemmas about ln(±∞) and absorption chains.
   sorry
 
 theorem eval_zero (ρ : Nat → α) : eval ρ zero = E.zro := by
