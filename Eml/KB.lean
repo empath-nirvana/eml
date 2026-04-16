@@ -190,6 +190,14 @@ def kbRules : List KBRule :=
   -- KB completion rules: close the sub_self × exp_ln/ln_exp interaction
   , { name := "cancel_exp_ln_sub",  lhs := node (ln' (ln' x)) x,       rhs := zero }
   , { name := "cancel_ln_exp_sub",  lhs := node x (exp' (exp' x)),      rhs := zero }
+  -- Extended ±∞ rules (added for the ±∞ model)
+  , { name := "ln_zero",      lhs := ln' zero,             rhs := .negInf }
+  , { name := "exp_neg_inf",  lhs := exp' .negInf,         rhs := zero }
+  , { name := "ln_neg_inf",   lhs := ln' .negInf,          rhs := .posInf }
+  , { name := "ln_pos_inf",   lhs := ln' .posInf,          rhs := .posInf }
+  , { name := "exp_pos_inf",  lhs := exp' .posInf,         rhs := .posInf }
+  , { name := "neg_neg_inf",  lhs := neg' .negInf,         rhs := .posInf }
+  , { name := "neg_pos_inf",  lhs := neg' .posInf,         rhs := .negInf }
   ]
 
 /-! ## Subterm positions -/
