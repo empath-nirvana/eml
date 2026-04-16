@@ -29,38 +29,38 @@ normalizer's ability to transform subexpressions independently. -/
 theorem SemEq.node {a a' b b' : Eml}
     (h1 : SemEq a a') (h2 : SemEq b b') :
     SemEq (.node a b) (.node a' b') :=
-  fun α _ ρ => by simp only [eval]; rw [h1 α ρ, h2 α ρ]
+  fun α _ ρ hf => by simp only [eval]; rw [h1 α ρ hf, h2 α ρ hf]
 
 theorem SemEq.exp' {a a' : Eml} (h : SemEq a a') :
     SemEq (exp' a) (exp' a') :=
-  fun α _ ρ => by rw [eval_exp', eval_exp', h α ρ]
+  fun α _ ρ hf => by rw [eval_exp', eval_exp', h α ρ hf]
 
 theorem SemEq.ln' {a a' : Eml} (h : SemEq a a') :
     SemEq (ln' a) (ln' a') :=
-  fun α _ ρ => by rw [eval_ln', eval_ln', h α ρ]
+  fun α _ ρ hf => by rw [eval_ln', eval_ln', h α ρ hf]
 
 theorem SemEq.neg' {a a' : Eml} (h : SemEq a a') :
     SemEq (neg' a) (neg' a') :=
-  fun α _ ρ => by rw [eval_neg', eval_neg', h α ρ]
+  fun α _ ρ hf => by rw [eval_neg', eval_neg', h α ρ hf]
 
 theorem SemEq.sub' {a a' b b' : Eml}
     (h1 : SemEq a a') (h2 : SemEq b b') :
     SemEq (sub' a b) (sub' a' b') :=
-  fun α _ ρ => by rw [eval_sub', eval_sub', h1 α ρ, h2 α ρ]
+  fun α _ ρ hf => by rw [eval_sub', eval_sub', h1 α ρ hf, h2 α ρ hf]
 
 theorem SemEq.add' {a a' b b' : Eml}
     (h1 : SemEq a a') (h2 : SemEq b b') :
     SemEq (add' a b) (add' a' b') :=
-  fun α _ ρ => by rw [eval_add', eval_add', h1 α ρ, h2 α ρ]
+  fun α _ ρ hf => by rw [eval_add', eval_add', h1 α ρ hf, h2 α ρ hf]
 
 theorem SemEq.mul' {a a' b b' : Eml}
     (h1 : SemEq a a') (h2 : SemEq b b') :
     SemEq (mul' a b) (mul' a' b') :=
-  fun α _ ρ => by rw [eval_mul', eval_mul', h1 α ρ, h2 α ρ]
+  fun α _ ρ hf => by rw [eval_mul', eval_mul', h1 α ρ hf, h2 α ρ hf]
 
 theorem SemEq.inv' {a a' : Eml} (h : SemEq a a') :
     SemEq (inv' a) (inv' a') :=
-  fun α _ ρ => by rw [eval_inv', eval_inv', h α ρ]
+  fun α _ ρ hf => by rw [eval_inv', eval_inv', h α ρ hf]
 
 theorem SemEq.div' {a a' b b' : Eml}
     (h1 : SemEq a a') (h2 : SemEq b b') :
@@ -129,7 +129,7 @@ theorem semEq_neg_neg (a : Eml) :
 
 theorem semEq_mul_comm (a b : Eml) :
     SemEq (mul' a b) (mul' b a) :=
-  fun α _ ρ => by rw [eval_mul', eval_mul', ExtExpAlgebra.mul_comm]
+  fun α _ ρ hf => by rw [eval_mul', eval_mul', ExtExpAlgebra.mul_comm]
 
 theorem semEq_mul_one_l (a : Eml) :
     SemEq (mul' one a) a :=
@@ -279,7 +279,7 @@ end ISqr
     This is the fundamental arithmetic identity that makes Q(i) a
     sound coefficient domain for the decision procedure. -/
 theorem i_squared : SemEq (mul' i' i') negOne := by
-  intro α _ ρ
+  intro α _ ρ _
   rw [eval_mul', eval_negOne]
   exact i_sq_eq ρ
 
@@ -304,7 +304,7 @@ theorem semEq_add_perm3 (a b c : Eml) :
 theorem semEq_combine (c₁ c₂ m : Eml) :
     SemEq (add' (mul' c₁ m) (mul' c₂ m))
           (mul' (add' c₁ c₂) m) := by
-  intro α _ ρ
+  intro α _ ρ _
   simp only [eval_add', eval_mul']
   rw [ExtExpAlgebra.mul_comm (eval ρ c₁) (eval ρ m),
       ExtExpAlgebra.mul_comm (eval ρ c₂) (eval ρ m),
