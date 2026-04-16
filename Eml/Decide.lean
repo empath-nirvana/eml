@@ -202,9 +202,9 @@ private theorem half_plus_half :
     rw [E.mul_one] at this
     exact this.symm
   rw [h1]
-  exact ExtExpAlgebra.inv_mul_cancel
-    ⟨sorry, sorry⟩ -- 2 is finite
-    sorry           -- 2 ≠ 0
+  have one_fin : Finite (E.one : α) := ⟨E.neg_inf_ne_one.symm, E.pos_inf_ne_one.symm⟩
+  have two_fin : Finite (E.add E.one E.one : α) := Finite.add one_fin one_fin
+  exact ExtExpAlgebra.inv_mul_cancel two_fin sorry -- 2 ≠ 0
 
 /-- Evaluate pi' in terms of L = ln(-1). -/
 private theorem eval_pi' (ρ : Nat → α) :
