@@ -54,6 +54,11 @@ class ExtExpAlgebra (α : Type _) where
   pos_inf_ne_one : pos_inf ≠ one
   neg_inf_ne_pos_inf : neg_inf ≠ pos_inf
 
+  -- Partial characteristic-0: 1 + 1 ≠ 0 (excludes ℤ/2ℤ-like models).
+  -- Needed for half_plus_half and 2·x decompositions.
+  -- A full characteristic-0 axiom would be: ∀ n > 0, n·1 ≠ 0.
+  two_ne_zro : add one one ≠ zro
+
   -- Additive group
   add_assoc : ∀ a b c, add (add a b) c = add a (add b c)
   add_comm  : ∀ a b, add a b = add b a
@@ -387,13 +392,22 @@ axiom schanuel_eml {α : Type _} [ExtExpAlgebra α] :
       EvalFinite ρ t
 
 /-- **Tier 2 Soundness**: Step preserves evaluation for ground terms,
-    conditional on Schanuel's conjecture. -/
+    conditional on Schanuel's conjecture.
+
+    For a ground tree `a`, all its subterms are ground (structural
+    induction). Schanuel (`schanuel_eml`) says ground trees evaluate
+    finitely. So the finiteness condition for `step_sound_finite`
+    holds on all subterms of `a`, which is what the proof actually
+    needs. (The `∀ t, EvalFinite ρ t` in `step_sound_finite`'s type
+    is stronger than needed; weakening it to "subterms" would close
+    this proof without the dummy hypothesis.) -/
 theorem step_sound_ground {a b : Eml} (h : Step a b)
     (hg : a.isGround = true) (ρ : Nat → α) :
     eval ρ a = eval ρ b :=
-  -- Ground terms have no variables, so EvalFinite holds for all
-  -- subterms by the Schanuel axiom. Needs a lemma: "subterms of
-  -- ground terms are ground" to pass isGround to schanuel_eml.
+  -- Conceptually: apply step_sound_finite with the witness that
+  -- all subterms of a ground tree are ground, hence finite by Schanuel.
+  -- Formalizing requires: (1) a subterm-closed version of step_sound_finite,
+  -- or (2) a lemma showing Step a b forces the relevant t's to be ground.
   sorry
 
 /-! ## §3. Tier 3: The Richardson barrier
@@ -414,10 +428,14 @@ theorem step_sound_ground {a b : Eml} (h : Step a b)
 theorem step_sound_not_unconditional
     (h_indet : E.add E.neg_inf E.pos_inf ≠ E.zro) :
     ¬∀ (ρ : Nat → α) {a b : Eml}, FinEnv ρ → Step a b → eval ρ a = eval ρ b := by
-  -- Witness: ρ = (fun _ => 0), Step = sub_self(ln'(var 0))
-  -- eval LHS = add(-∞, +∞) ≠ 0 = eval RHS by h_indet
-  -- (Proved in detail in Partiality.lean: richardson_counterexample)
-  sorry
+  intro h
+  -- Witness: ρ = (fun _ => zro), Step = sub_self(ln'(var 0))
+  have hfin : FinEnv (fun _ : Nat => E.zro : Nat → α) :=
+    fun _ => ⟨E.neg_inf_ne_zro.symm, E.pos_inf_ne_zro.symm⟩
+  have hstep := h (fun _ => E.zro) hfin (Step.sub_self (ln' (var 0)))
+  rw [eval_sub', eval_ln', eval_zero] at hstep
+  simp only [eval, E.ln_zero, E.neg_neg_inf] at hstep
+  exact h_indet hstep
 
 /-! ## Semantic equality -/
 
