@@ -175,14 +175,7 @@ theorem richardson_counterexample
   -- These differ by h_ne.
   sorry
 
-/-- The semantic safety condition: a tree evaluates finitely.
-    This is the guard that DOES make soundness work, but it
-    depends on ρ and the tree's evaluation — it's not decidable
-    from the tree syntax alone. -/
-def EvalFinite (ρ : Nat → α) (t : Eml) : Prop :=
-  Fin (eval ρ t)
-
-/-- The Richardson barrier, informally stated:
+/-- The decidability barrier, informally stated:
 
     There is no decidable predicate P : Eml → Prop such that:
     (1) P(t) implies EvalFinite ρ t for all finite ρ
