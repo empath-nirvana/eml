@@ -147,7 +147,8 @@ inductive Reducing : Eml → Eml → Prop where
   -- add_assoc excluded: handled by AC normalization (like add_comm)
   | exp_zero : Reducing (exp' zero) one
   | cancel_exp_ln (z : Eml) : Reducing (node (ln' (ln' z)) z) zero
-  | cancel_ln_exp (z : Eml) : Reducing (node z (exp' (exp' z))) zero
+  | cancel_ln_exp (z : Eml) : z ≠ negInf → z ≠ posInf →
+      Reducing (node z (exp' (exp' z))) zero
   | node_l (a a' b : Eml) : Reducing a a' → Reducing (node a b) (node a' b)
   | node_r (a b b' : Eml) : Reducing b b' → Reducing (node a b) (node a b')
 
@@ -169,7 +170,7 @@ theorem Reducing.toStep {a b : Eml} (h : Reducing a b) : Step a b := by
   | ln_mul a b => exact .ln_mul a b
   | exp_zero => exact .exp_zero
   | cancel_exp_ln z => exact .cancel_exp_ln z
-  | cancel_ln_exp z => exact .cancel_ln_exp z
+  | cancel_ln_exp z _ _ => exact .cancel_ln_exp z
   | node_l _ _ _ _ ih => exact .node_l _ _ _ ih
   | node_r _ _ _ _ ih => exact .node_r _ _ _ ih
 
@@ -193,7 +194,7 @@ theorem Reducing.leaves_le {a b : Eml} (h : Reducing a b) : b.leaves ≤ a.leave
   | ln_mul a b => simp [leaves_ln', leaves_mul', leaves_add']; omega
   | exp_zero => simp [leaves_exp', leaves, leaves_zero]
   | cancel_exp_ln z => simp [leaves, leaves_ln']; have := leaves_pos z; omega
-  | cancel_ln_exp z => simp [leaves, leaves_exp']; have := leaves_pos z; omega
+  | cancel_ln_exp z _ _ => simp [leaves, leaves_exp']; have := leaves_pos z; omega
   | node_l _ _ _ _ ih => simp [leaves]; omega
   | node_r _ _ _ _ ih => simp [leaves]; omega
 
@@ -228,7 +229,7 @@ theorem Reducing.terminates {a b : Eml} (h : Reducing a b) (hne : a ≠ b) :
   | ln_mul a b => left; simp [leaves_ln', leaves_mul', leaves_add']; omega
   | exp_zero => left; simp [leaves_exp', leaves, leaves_zero]
   | cancel_exp_ln z => left; simp [leaves, leaves_ln']; have := leaves_pos z; omega
-  | cancel_ln_exp z =>
+  | cancel_ln_exp z hni hpi =>
     by_cases hleaves : z.leaves ≥ 2
     · left; simp [leaves, leaves_exp']; omega
     · right
@@ -237,8 +238,8 @@ theorem Reducing.terminates {a b : Eml} (h : Reducing a b) (hne : a ≠ b) :
       simp only [varCount, exp', zero, ln']
       cases z with
       | one => exact absurd rfl hne
-      | negInf => sorry -- cancel_ln_exp on atoms: edge case from ±∞ extension
-      | posInf => sorry -- cancel_ln_exp on atoms: edge case from ±∞ extension
+      | negInf => exact absurd rfl hni
+      | posInf => exact absurd rfl hpi
       | var n => simp [varCount]
       | node l r =>
           simp [leaves] at hz1; have := leaves_pos l; have := leaves_pos r; omega
