@@ -202,7 +202,9 @@ private theorem half_plus_half :
     rw [E.mul_one] at this
     exact this.symm
   rw [h1]
-  exact ExtExpAlgebra.inv_mul_cancel _
+  exact ExtExpAlgebra.inv_mul_cancel
+    ⟨sorry, sorry⟩ -- 2 is finite
+    sorry           -- 2 ≠ 0
 
 /-- Evaluate pi' in terms of L = ln(-1). -/
 private theorem eval_pi' (ρ : Nat → α) :
@@ -234,43 +236,12 @@ private theorem mul_sq (a b : α) :
 /-- i'·π = -ln(-1). Re-derived here (original is private in Trig). -/
 private theorem eval_i_pi (ρ : Nat → α) :
     E.mul (eval ρ i') (eval ρ pi') = E.neg (E.ln (E.neg E.one)) := by
-  have hi := eval_i' ρ
-  rw [hi, ExtExpAlgebra.neg_mul, ExtExpAlgebra.mul_assoc,
-      ExtExpAlgebra.inv_mul_cancel, E.mul_one]
+  sorry -- needs neg_mul + inv_mul_cancel with finiteness of ln(-1) and pi
 
 /-- i² = -1 (within a fixed ExtExpAlgebra). -/
 private theorem i_sq_eq (ρ : Nat → α) :
     E.mul (eval ρ i') (eval ρ i') = (E.neg E.one : α) := by
-  -- Abbreviate for readability (let doesn't change the goal)
-  -- I = eval ρ i', P = eval ρ pi', L = ln(-1)
-  -- Step 1: (IP)² = I²P² = L²
-  have h1 : E.mul (E.mul (eval ρ i') (eval ρ i'))
-                   (E.mul (eval ρ pi') (eval ρ pi'))
-           = E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one)) := by
-    rw [← mul_sq (eval ρ i') (eval ρ pi')]
-    have h_ip := eval_i_pi ρ
-    simp only [h_ip]
-    rw [ExtExpAlgebra.neg_mul, ExtExpAlgebra.mul_neg, E.neg_neg]
-  -- Step 2: substitute π² = -L²
-  have h_p2 := pi_squared ρ
-  rw [h_p2] at h1
-  -- h1 : I² · (-L²) = L²  →  -(I² · L²) = L²
-  rw [ExtExpAlgebra.mul_neg] at h1
-  -- Negate both sides: I² · L² = -L²
-  have h2 : E.mul (E.mul (eval ρ i') (eval ρ i'))
-                   (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one)))
-           = E.neg (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one))) := by
-    have := congrArg E.neg h1; rwa [E.neg_neg] at this
-  -- Multiply both sides by inv(L²)
-  have h3 := congrArg
-    (fun x => E.mul x (E.inv (E.mul (E.ln (E.neg E.one)) (E.ln (E.neg E.one))))) h2
-  -- Beta-reduce the lambda applications
-  dsimp only [] at h3
-  -- LHS: I² · (L² · inv(L²)) = I² · 1 = I²
-  rw [ExtExpAlgebra.mul_assoc, ExtExpAlgebra.mul_inv_cancel, E.mul_one] at h3
-  -- RHS: -(L² · inv(L²)) = -1
-  rw [ExtExpAlgebra.neg_mul, ExtExpAlgebra.mul_inv_cancel] at h3
-  exact h3
+  sorry -- needs neg_mul, mul_neg, inv_mul_cancel with finiteness of ln(-1) and pi
 
 end ISqr
 
@@ -312,10 +283,12 @@ theorem semEq_combine (c₁ c₂ m : Eml) :
       ExtExpAlgebra.mul_comm (eval ρ m)]
 
 /-- Cancellation of additive inverses: a + (-a) = 0.
-    Justifies the normalizer's inverse cancellation pass. -/
+    Requires EvalFinite (from SemEq's ∀ t, EvalFinite guard). -/
 theorem semEq_add_neg_cancel (a : Eml) :
     SemEq (add' a (neg' a)) zero := by
-  sorry -- needs add_neg with infinity guards
+  intro α inst ρ hf
+  rw [eval_add', eval_neg', eval_zero]
+  exact inst.add_neg (eval ρ a) (hf a).1 (hf a).2
 
 /-- neg(a) + a = 0. -/
 theorem semEq_neg_add_cancel (a : Eml) :

@@ -177,7 +177,7 @@ theorem Reducing.varCount_le {a b : Eml} (h : Reducing a b) : b.varCount ≤ a.v
   | ln_mul a b => simp [varCount_ln', varCount_mul', varCount_add']
   | exp_zero => simp [varCount_exp', varCount_zero, varCount]
   | cancel_exp_ln z => simp [varCount, varCount_ln', varCount_zero]
-  | cancel_ln_exp z => simp [varCount, varCount_exp', varCount_zero]
+  | cancel_ln_exp z _ _ => simp [varCount, varCount_exp', varCount_zero]
   | node_l _ _ _ _ ih => simp [varCount]; omega
   | node_r _ _ _ _ ih => simp [varCount]; omega
 
@@ -461,14 +461,14 @@ theorem strict_reducing_wcr_np :
               · intro heq; subst heq; exact hne1 rfl
             | ln_exp _ => exact ⟨_, .refl, .refl⟩
             | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
-            | cancel_ln_exp _ => exact absurd rfl hne1
+            | cancel_ln_exp _ _ _ => exact absurd rfl hne1
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln _ => exact ⟨_, .refl, .refl⟩
           | exp_zero => exact ⟨_, .refl, .refl⟩
           | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
         | ln_exp _ => exact ⟨_, .refl, .refl⟩
         | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
-        | cancel_ln_exp _ => exact absurd rfl hne1
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne1
       | ln_exp z => exact absurd hm one_reducing_vacuous
       | sub_zero z =>
         -- hm : Reducing (ln' z) m'. b = node m' (exp' zero). c = z.
@@ -493,7 +493,7 @@ theorem strict_reducing_wcr_np :
             | ln_mul _ _ =>
               refine ⟨_, .single ⟨.node_r _ _ _ .exp_zero, ?_⟩, .refl⟩
               · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this
-            | cancel_ln_exp _ => exact absurd rfl hne1
+            | cancel_ln_exp _ _ _ => exact absurd rfl hne1
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln _ =>
             refine ⟨_, .single ⟨.node_r _ _ _ .exp_zero, ?_⟩, .refl⟩
@@ -510,7 +510,7 @@ theorem strict_reducing_wcr_np :
         | ln_mul _ _ =>
           refine ⟨_, .single ⟨.node_r _ _ _ .exp_zero, ?_⟩, .refl⟩
           · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this
-        | cancel_ln_exp _ => exact absurd rfl hne1
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne1
       | sub_self z =>
         -- a = sub' z z = node (ln' z) (exp' z). h1=node_l: b = node m' (exp' z).
         -- h2=sub_self: c = zero. hm : Reducing (ln' z) m'.
@@ -531,29 +531,29 @@ theorem strict_reducing_wcr_np :
                 simp [leaves, ln'] at this; have := leaves_pos z'; omega
             | ln_exp w =>
               -- b = node m' (exp'(exp' m')). cancel_ln_exp fires.
-              refine ⟨zero, .single ⟨.cancel_ln_exp _, ?_⟩, .refl⟩
+              refine ⟨zero, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩, .refl⟩
               · intro heq; have := congrArg Eml.leaves heq
                 simp [leaves, exp', ln'] at this; omega
             | ln_mul a_arg b_arg =>
               -- b = node m' (exp'(exp' m')). cancel_ln_exp fires.
-              refine ⟨zero, .single ⟨.cancel_ln_exp _, ?_⟩, .refl⟩
+              refine ⟨zero, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩, .refl⟩
               · intro heq; have := congrArg Eml.leaves heq
                 simp [leaves, mul', add', sub', neg', exp', ln'] at this
                 have := leaves_pos a_arg; have := leaves_pos b_arg; omega
-            | cancel_ln_exp _ => exact absurd rfl hne1
+            | cancel_ln_exp _ _ _ => exact absurd rfl hne1
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln w =>
             -- b = node (node one w) (exp'(exp'(node one w))). cancel_ln_exp fires.
-            refine ⟨zero, .single ⟨.cancel_ln_exp _, ?_⟩, .refl⟩
+            refine ⟨zero, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩, .refl⟩
             · intro heq; have := congrArg (fun | .node (.node _ _) _ => true | _ => false) heq
               simp [zero, ln', exp'] at this
           | exp_zero =>
             -- b = node (exp' one) (exp'(exp'(exp' one))). cancel_ln_exp (exp' one) fires.
-            refine ⟨zero, .single ⟨.cancel_ln_exp _, ?_⟩, .refl⟩
+            refine ⟨zero, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩, .refl⟩
             · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this
           | cancel_exp_ln _ =>
             -- b = node (node one zero) (exp'(exp'(node one zero))). cancel_ln_exp fires.
-            refine ⟨zero, .single ⟨.cancel_ln_exp _, ?_⟩, .refl⟩
+            refine ⟨zero, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩, .refl⟩
             · intro heq; have := congrArg Eml.leaves heq
               simp [leaves, zero, ln'] at this
         | ln_exp _ =>
@@ -561,15 +561,15 @@ theorem strict_reducing_wcr_np :
           refine ⟨zero, ?_, .refl⟩
           by_cases heq : .node m' (exp' (exp' m')) = zero
           · rw [heq]; exact .refl
-          · exact .single ⟨.cancel_ln_exp _, heq⟩
+          · exact .single ⟨.cancel_ln_exp _ sorry sorry, heq⟩
         | ln_mul a_arg b_arg =>
           -- z = mul' a_arg b_arg. m' = add'(ln' a_arg, ln' b_arg).
           -- cancel_ln_exp fires on b = node m' (exp'(exp' m')).
-          refine ⟨zero, .single ⟨.cancel_ln_exp _, ?_⟩, .refl⟩
+          refine ⟨zero, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩, .refl⟩
           · intro heq; have := congrArg Eml.leaves heq
             simp [leaves, mul', add', sub', neg', exp', ln'] at this
             have := leaves_pos a_arg; have := leaves_pos b_arg; omega
-        | cancel_ln_exp _ => exact absurd rfl hne1
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne1
       | add_zero_l z => exact absurd hp (np_add_zero_l_false _)
       | add_zero_r z => exact absurd hp (np_add_zero_r_false _)
       | mul_one_l z => exact absurd hp (np_mul_one_l_false _)
@@ -590,7 +590,7 @@ theorem strict_reducing_wcr_np :
             | node_l _ _ _ h3 => exact absurd h3 one_reducing_vacuous
             | node_r _ _ _ h3 => exact absurd h3 one_reducing_vacuous
           | node_r _ _ _ h2 => exact absurd h2 one_reducing_vacuous
-        | cancel_ln_exp _ => exact absurd rfl hne1
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne1
       | cancel_exp_ln z =>
         -- a = node (ln'(ln' z)) z. h1=node_l: hm : Reducing (ln'(ln' z)) m'. b = node m' z. c = zero.
         -- Replicate the reduction inside z (right child) + cancel_exp_ln.
@@ -644,7 +644,7 @@ theorem strict_reducing_wcr_np :
                     refine ⟨zero, .single ⟨.sub_self _, fun heq => ?_⟩, .refl⟩
                     · have := congrArg Eml.leaves heq
                       simp [leaves, mul', add', sub', neg', exp', ln'] at this; omega
-                  | cancel_ln_exp _ => exact absurd rfl hne1
+                  | cancel_ln_exp _ _ _ => exact absurd rfl hne1
                 | node_r _ _ _ h5 => exact absurd h5 one_reducing_vacuous
                 | exp_ln _ =>
                   -- b = sub'(t, t). sub_self fires.
@@ -671,7 +671,7 @@ theorem strict_reducing_wcr_np :
                 refine ⟨zero, .single ⟨.sub_self _, fun heq => ?_⟩, .refl⟩
                 · have := congrArg Eml.leaves heq
                   simp [leaves, mul', add', sub', neg', exp', ln'] at this; omega
-              | cancel_ln_exp _ => exact absurd rfl hne1
+              | cancel_ln_exp _ _ _ => exact absurd rfl hne1
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
       /-
               -- hz : Reducing (ln' z) z'. m' = ln'(z') (through congruence).
@@ -712,7 +712,7 @@ theorem strict_reducing_wcr_np :
                     · intro heq; have := congrArg Eml.leaves heq
                       simp [leaves, mul', add', sub', neg', exp', ln'] at this
                       have := leaves_pos a✝; have := leaves_pos b✝; omega
-                  | cancel_ln_exp _ => exact absurd rfl hne1
+                  | cancel_ln_exp _ _ _ => exact absurd rfl hne1
                 | node_r _ _ _ h4 => exact absurd h4 one_reducing_vacuous
                 | exp_ln _ =>
                   -- exp'(node one z) matched exp'(ln' w). Impossible (shown earlier).
@@ -764,7 +764,7 @@ theorem strict_reducing_wcr_np :
         · -- Step 2: cancel_ln_exp m' or result is already zero.
           refine (if heq : Eml.node m' (exp' (exp' m')) = zero
             then heq ▸ .refl
-            else .single ⟨.cancel_ln_exp _, heq⟩)
+            else .single ⟨.cancel_ln_exp _ sorry sorry, heq⟩)
     -- ====== h1 = congruence right ======
     | node_r _ _ r' hr =>
       cases h2 with
@@ -802,7 +802,7 @@ theorem strict_reducing_wcr_np :
             | inv_inv _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_inv_inv_false _)
           | ln_exp _ => exact ⟨_, .refl, .refl⟩
           | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
-          | cancel_ln_exp _ => exact absurd rfl hne1
+          | cancel_ln_exp _ _ _ => exact absurd rfl hne1
         | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
         | exp_ln _ => exact ⟨_, .refl, .refl⟩
         | exp_zero => exact ⟨_, .refl, .refl⟩
@@ -823,7 +823,7 @@ theorem strict_reducing_wcr_np :
               | node_l _ _ _ h3 => exact absurd h3 one_reducing_vacuous
               | node_r _ _ _ h3 => exact absurd h3 one_reducing_vacuous
             | node_r _ _ _ h2 => exact absurd h2 one_reducing_vacuous
-          | cancel_ln_exp _ => exact absurd rfl hne1
+          | cancel_ln_exp _ _ _ => exact absurd rfl hne1
         | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
         | exp_ln _ =>
           -- r' = one. b = exp'(ln' _) → _ via exp_ln.
@@ -922,7 +922,7 @@ theorem strict_reducing_wcr_np :
             rename_i z'
             by_cases heq : Eml.node z' (exp' (exp' z')) = zero
             · exact heq ▸ .refl
-            · exact .single ⟨.cancel_ln_exp _, heq⟩
+            · exact .single ⟨.cancel_ln_exp _ sorry sorry, heq⟩
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln _ =>
             -- z = ln' w. r' = exp'(w). b = node (ln' w) (exp' w) = sub'(w, w). sub_self fires.
@@ -1006,7 +1006,7 @@ theorem strict_reducing_wcr_np :
               · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
             | ln_exp _ => exact ⟨_, .refl, .refl⟩
             | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
-            | cancel_ln_exp _ =>
+            | cancel_ln_exp _ _ _ =>
               -- z=one, m''=ln' one=zero...but then c=exp'(zero)=a, contradicts hne2
               exact absurd rfl hne2
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
@@ -1015,7 +1015,7 @@ theorem strict_reducing_wcr_np :
           | cancel_exp_ln _ => exact ⟨_, .refl, .refl⟩
         | ln_exp _ => exact ⟨_, .refl, .refl⟩
         | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
-        | cancel_ln_exp _ => exact absurd rfl hne2
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne2
       | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
       | exp_ln _ => exact ⟨_, .refl, .refl⟩
       | exp_zero => exact ⟨_, .refl, .refl⟩
@@ -1049,7 +1049,7 @@ theorem strict_reducing_wcr_np :
             | inv_inv _ => exact absurd hp.of_node_r.of_node_l.of_node_r (np_inv_inv_false _)
           | ln_exp _ => exact ⟨_, .refl, .refl⟩
           | ln_mul _ _ => exact ⟨_, .refl, .refl⟩
-          | cancel_ln_exp _ => exact absurd rfl hne2
+          | cancel_ln_exp _ _ _ => exact absurd rfl hne2
         | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
         | exp_ln _ => exact ⟨_, .refl, .refl⟩
         | exp_zero => exact ⟨_, .refl, .refl⟩
@@ -1079,7 +1079,7 @@ theorem strict_reducing_wcr_np :
             | ln_mul _ _ =>
               refine ⟨_, .refl, .single ⟨.node_r _ _ _ .exp_zero, ?_⟩⟩
               · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
-            | cancel_ln_exp _ => exact absurd rfl hne2
+            | cancel_ln_exp _ _ _ => exact absurd rfl hne2
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln _ =>
             refine ⟨_, .refl, .single ⟨.node_r _ _ _ .exp_zero, ?_⟩⟩
@@ -1096,7 +1096,7 @@ theorem strict_reducing_wcr_np :
         | ln_mul _ _ =>
           refine ⟨_, .refl, .single ⟨.node_r _ _ _ .exp_zero, ?_⟩⟩
           · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this; omega
-        | cancel_ln_exp _ => exact absurd rfl hne2
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne2
       | node_r _ _ _ hr =>
         -- hr : Reducing (exp' zero) r'. b = z. c = node (ln' z) r'.
         -- Symmetric to (h1=node_r, h2=sub_zero): swap join witnesses.
@@ -1111,7 +1111,7 @@ theorem strict_reducing_wcr_np :
               | node_l _ _ _ h3 => exact absurd h3 one_reducing_vacuous
               | node_r _ _ _ h3 => exact absurd h3 one_reducing_vacuous
             | node_r _ _ _ h2 => exact absurd h2 one_reducing_vacuous
-          | cancel_ln_exp _ => exact absurd rfl hne2
+          | cancel_ln_exp _ _ _ => exact absurd rfl hne2
         | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
         | exp_ln _ =>
           -- r' = one. c = node (ln' z) one = exp'(ln' z) → z via exp_ln.
@@ -1155,38 +1155,38 @@ theorem strict_reducing_wcr_np :
               · intro heq; have := congrArg Eml.leaves heq
                 simp [leaves, ln'] at this; have := leaves_pos z'; omega
             | ln_exp w =>
-              refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _, ?_⟩⟩
+              refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩⟩
               · intro heq; have := congrArg Eml.leaves heq
                 simp [leaves, exp', ln'] at this; omega
             | ln_mul a_arg b_arg =>
-              refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _, ?_⟩⟩
+              refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩⟩
               · intro heq; have := congrArg Eml.leaves heq
                 simp [leaves, mul', add', sub', neg', exp', ln'] at this
                 have := leaves_pos a_arg; have := leaves_pos b_arg; omega
-            | cancel_ln_exp _ => exact absurd rfl hne2
+            | cancel_ln_exp _ _ _ => exact absurd rfl hne2
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln w =>
-            refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _, ?_⟩⟩
+            refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩⟩
             · intro heq; have := congrArg (fun | Eml.node (Eml.node _ _) _ => true | _ => false) heq
               simp [zero, ln', exp'] at this
           | exp_zero =>
-            refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _, ?_⟩⟩
+            refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩⟩
             · intro heq; have := congrArg Eml.leaves heq; simp [leaves] at this
           | cancel_exp_ln _ =>
-            refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _, ?_⟩⟩
+            refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩⟩
             · intro heq; have := congrArg Eml.leaves heq
               simp [leaves, zero, ln'] at this
         | ln_exp _ =>
           refine ⟨zero, .refl, ?_⟩
           by_cases heq : .node c' (exp' (exp' c')) = zero
           · rw [heq]; exact .refl
-          · exact .single ⟨.cancel_ln_exp _, heq⟩
+          · exact .single ⟨.cancel_ln_exp _ sorry sorry, heq⟩
         | ln_mul a_arg b_arg =>
-          refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _, ?_⟩⟩
+          refine ⟨zero, .refl, .single ⟨.cancel_ln_exp _ sorry sorry, ?_⟩⟩
           · intro heq; have := congrArg Eml.leaves heq
             simp [leaves, mul', add', sub', neg', exp', ln'] at this
             have := leaves_pos a_arg; have := leaves_pos b_arg; omega
-        | cancel_ln_exp _ => exact absurd rfl hne2
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne2
       | node_r _ _ c' hc =>
         subst hml; subst hmr
         -- c = node (ln' z) c'. Symmetric to h1=node_r/h2=sub_self (line 834).
@@ -1286,7 +1286,7 @@ theorem strict_reducing_wcr_np :
           have := congrArg (fun | .node _ (.node (.node _ x) _) => x | x => x) this
           simp [ln'] at this; exact this
         have := congrArg Eml.leaves this; simp [leaves] at this; omega
-      | cancel_ln_exp _ =>
+      | cancel_ln_exp _ _ _ =>
         -- ml = _, mr = exp'(exp' _). hml : ln' z = _. hmr : exp' z = exp'(exp' _).
         -- From hml: _ = ln' z. Substituting: hmr : exp' z = exp'(exp'(ln' z)).
         -- z = exp'(ln' z). Leaves contradiction: z.leaves = z.leaves + 4.
@@ -1346,7 +1346,7 @@ theorem strict_reducing_wcr_np :
             | node_l _ _ _ h3 => exact absurd h3 one_reducing_vacuous
             | node_r _ _ _ h3 => exact absurd h3 one_reducing_vacuous
           | node_r _ _ _ h2 => exact absurd h2 one_reducing_vacuous
-        | cancel_ln_exp _ => exact absurd rfl hne2
+        | cancel_ln_exp _ _ _ => exact absurd rfl hne2
       | node_r _ _ _ hr => exact absurd hr one_reducing_vacuous
       | exp_zero => exact ⟨_, .refl, .refl⟩
       | exp_ln _ => exact ⟨_, .refl, .refl⟩
@@ -1398,7 +1398,7 @@ theorem strict_reducing_wcr_np :
                       dsimp only [ln', exp', zero, mul', add', sub', neg'] at this
                       simp only [Eml.leaves] at this
                       have := leaves_pos a_arg; have := leaves_pos b_arg; omega
-                  | cancel_ln_exp _ =>
+                  | cancel_ln_exp _ _ _ =>
                     -- r specific (r = one forced). NonPartial contradiction.
                     exact absurd rfl hne2
                 | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
@@ -1427,7 +1427,7 @@ theorem strict_reducing_wcr_np :
                   dsimp only [ln', exp', zero, mul', add', sub', neg'] at this
                   simp only [Eml.leaves] at this
                   have := leaves_pos a_arg; have := leaves_pos b_arg; omega
-              | cancel_ln_exp _ => exact absurd rfl hne2
+              | cancel_ln_exp _ _ _ => exact absurd rfl hne2
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
       | node_r _ _ c' hc =>
         subst hml; subst hmr
@@ -1450,7 +1450,7 @@ theorem strict_reducing_wcr_np :
       | exp_ln _ | exp_zero =>
         -- hmr : r = one. a = node (ln' zero) one. Contains ln' zero.
         exfalso; subst hmr; exact absurd (hp _ .refl) (by native_decide)
-      | add_zero_l _ | neg_neg _ | ln_exp _ | sub_self _ | cancel_ln_exp _ =>
+      | add_zero_l _ | neg_neg _ | ln_exp _ | sub_self _ | cancel_ln_exp _ _ _ =>
         exfalso; have h1 := congrArg Eml.leaves hml; have h2 := congrArg Eml.leaves hmr
         dsimp only [ln', exp', neg', sub', add', zero] at h1 h2
         simp only [Eml.leaves] at h1; simp only [Eml.leaves] at h2; omega
@@ -1472,7 +1472,7 @@ theorem strict_reducing_wcr_np :
       | add_zero_r _ =>
         -- hmr : z = exp'(neg' zero). NonPartial contradiction.
         exfalso; subst hmr; exact np_add_zero_r_false _ hp
-    | cancel_ln_exp _ =>
+    | cancel_ln_exp _ _ _ =>
       -- a = node m (exp'(exp' m)), b = zero.
       -- IMPORTANT: generalize right child first to avoid dependent elimination failure.
       generalize hmr : exp' (exp' m) = mr at h2 hne2
@@ -1492,7 +1492,7 @@ theorem strict_reducing_wcr_np :
         · -- node c' (exp'(exp' c')) →* zero via cancel_ln_exp c' (or already zero)
           by_cases heq : Eml.node c' (exp' (exp' c')) = zero
           · exact heq ▸ .refl
-          · exact .single ⟨.cancel_ln_exp _, heq⟩
+          · exact .single ⟨.cancel_ln_exp _ sorry sorry, heq⟩
       | node_r _ _ c' hc =>
         subst hml; subst hmr
         -- c = node m c'. hc : Reducing (exp'(exp' m)) c'.
@@ -1512,7 +1512,7 @@ theorem strict_reducing_wcr_np :
               exact hne2 (congrArg (fun x => Eml.node m (exp' (exp' x))) h)
             · by_cases heq : Eml.node m' (exp' (exp' m')) = zero
               · exact heq ▸ .refl
-              · exact .single ⟨.cancel_ln_exp _, heq⟩
+              · exact .single ⟨.cancel_ln_exp _ sorry sorry, heq⟩
           | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
           | exp_ln z =>
             -- m = ln' z. c' = exp' z. c = node (ln' z) (exp' z) = sub' z z → zero.
@@ -1533,7 +1533,7 @@ theorem strict_reducing_wcr_np :
           | mul_zero_r _ => exact absurd hp.of_node_r.of_node_l (np_mul_zero_r_false _)
           | inv_inv _ => exact absurd hp.of_node_r.of_node_l (np_inv_inv_false _)
         | node_r _ _ _ h_one => exact absurd h_one one_reducing_vacuous
-      | cancel_ln_exp _ => exact ⟨zero, .refl, .refl⟩
+      | cancel_ln_exp _ _ _ => exact ⟨zero, .refl, .refl⟩
       -- All base rules: leaves contradiction.
       -- Base rules: each dismissed individually.
       | exp_ln _ =>
