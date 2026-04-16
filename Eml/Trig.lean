@@ -143,14 +143,12 @@ theorem eval_two (ρ : Nat → α) : eval ρ two = E.add E.one E.one := by
 
 /-! ## Euler's identity -/
 
-/-- i·π evaluates to -ln(-1) in any ExtExpAlgebra. -/
+/-- i·π evaluates to -ln(-1) in any ExtExpAlgebra.
+    Proof requires pi finite and nonzero (a constraint on the intended
+    ℂ+{±∞} model that isn't derivable from the algebraic axioms). -/
 private theorem eval_mul_i'_pi' (ρ : Nat → α) :
     eval ρ (mul' i' pi') = E.neg (E.ln (E.neg E.one)) := by
-  rw [eval_mul']
-  have hi : eval ρ i' = E.neg (E.mul (E.ln (E.neg E.one)) (E.inv (eval ρ pi'))) := by
-    unfold i' div'
-    rw [eval_neg', eval_mul', eval_ln', eval_inv', eval_negOne]
-  sorry -- needs neg_mul + inv_mul_cancel with finiteness of ln(-1) and pi
+  sorry -- needs eval_pi_fin axiom + neg_mul + inv_mul_cancel chain
 
 /-- **Euler's identity**: exp(iπ) = -1, machine-checked. -/
 theorem euler_identity : SemEq (exp' (mul' i' pi')) negOne := by
