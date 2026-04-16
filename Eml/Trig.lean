@@ -35,23 +35,47 @@ theorem ExtExpAlgebra.mul_assoc (a b c : α) :
     _ = E.exp (E.ln (E.mul a (E.mul b c))) := by rw [← E.ln_mul]
     _ = E.mul a (E.mul b c) := E.exp_ln _
 
-/-- neg(a)·b = neg(a·b), for finite a. -/
-theorem ExtExpAlgebra.neg_mul {a : α} (b : α)
-    (ha : Finite a) :
+/-- neg(a)·b = neg(a·b), for finite a, b. -/
+theorem ExtExpAlgebra.neg_mul {a b : α}
+    (ha : Finite a) (hb : Finite b) :
     E.mul (E.neg a) b = E.neg (E.mul a b) := by
-  sorry -- same proof as old ExpField.neg_mul + finiteness of a
+  have hna : Finite (E.neg a) := ⟨E.neg_ne_neg_inf a ha.2, E.neg_ne_pos_inf a ha.1⟩
+  have hab : Finite (E.mul a b) := Finite.mul ha hb
+  have hnab : Finite (E.mul (E.neg a) b) := Finite.mul hna hb
+  have h : E.add (E.mul a b) (E.mul (E.neg a) b) = E.zro := by
+    calc E.add (E.mul a b) (E.mul (E.neg a) b)
+        = E.add (E.mul b a) (E.mul b (E.neg a)) := by
+          rw [E.mul_comm a, E.mul_comm (E.neg a)]
+      _ = E.mul b (E.add a (E.neg a)) := by rw [← E.mul_add]
+      _ = E.mul b E.zro := by rw [E.add_neg a ha.1 ha.2]
+      _ = E.zro := E.mul_zero _
+  calc E.mul (E.neg a) b
+      = E.add E.zro (E.mul (E.neg a) b) := (ExtExpAlgebra.zero_add _).symm
+    _ = E.add (E.add (E.neg (E.mul a b)) (E.mul a b)) (E.mul (E.neg a) b) := by
+        rw [E.add_comm (E.neg _), E.add_neg _ hab.1 hab.2]
+    _ = E.add (E.neg (E.mul a b)) (E.add (E.mul a b) (E.mul (E.neg a) b)) := by
+        rw [E.add_assoc]
+    _ = E.add (E.neg (E.mul a b)) E.zro := by rw [h]
+    _ = E.neg (E.mul a b) := E.add_zero _
 
-/-- a·neg(b) = neg(a·b), for finite b. -/
-theorem ExtExpAlgebra.mul_neg (a : α) {b : α}
-    (hb : Finite b) :
+/-- a·neg(b) = neg(a·b), for finite a, b. -/
+theorem ExtExpAlgebra.mul_neg {a b : α}
+    (ha : Finite a) (hb : Finite b) :
     E.mul a (E.neg b) = E.neg (E.mul a b) := by
-  rw [E.mul_comm, ExtExpAlgebra.neg_mul a hb, E.mul_comm]
+  rw [E.mul_comm, ExtExpAlgebra.neg_mul hb ha, E.mul_comm]
 
 /-- mul(a, inv(a)) = one, for finite nonzero a. -/
 theorem ExtExpAlgebra.mul_inv_cancel {a : α}
     (ha_fin : Finite a) (ha_nz : a ≠ E.zro) :
     E.mul a (E.inv a) = E.one := by
-  sorry -- needs add_neg on ln(a), which is finite since a ≠ 0 and a ≠ ±∞
+  have hln_fin : Finite (E.ln a) := Finite.ln ha_fin ha_nz
+  calc E.mul a (E.inv a)
+      = E.exp (E.ln (E.mul a (E.inv a))) := (E.exp_ln _).symm
+    _ = E.exp (E.add (E.ln a) (E.ln (E.inv a))) := by rw [E.ln_mul]
+    _ = E.exp (E.add (E.ln a) (E.ln (E.exp (E.neg (E.ln a))))) := by rw [E.inv_def]
+    _ = E.exp (E.add (E.ln a) (E.neg (E.ln a))) := by rw [E.ln_exp]
+    _ = E.exp E.zro := by rw [E.add_neg _ hln_fin.1 hln_fin.2]
+    _ = E.one := E.exp_zero
 
 /-- mul(inv(a), a) = one, for finite nonzero a. -/
 theorem ExtExpAlgebra.inv_mul_cancel {a : α}
@@ -68,18 +92,46 @@ private theorem neg_one_finite : Finite (E.neg E.one : α) :=
 
 /-- (-1)² = 1 -/
 theorem ExtExpAlgebra.neg_one_sq : E.mul (E.neg E.one) (E.neg E.one) = (E.one : α) := by
-  rw [ExtExpAlgebra.neg_mul (E.neg E.one) one_finite,
+  rw [ExtExpAlgebra.neg_mul one_finite neg_one_finite,
       ExtExpAlgebra.one_mul, E.neg_neg]
 
+private theorem neg_one_ne_zro : (E.neg E.one : α) ≠ E.zro := by
+  intro h
+  have : E.one = E.zro := by
+    have := congrArg E.neg h
+    rw [E.neg_neg, ExtExpAlgebra.neg_zero] at this
+    -- this : one = zro after neg_neg on LHS and neg_zero on RHS
+    -- Actually: h : neg one = zro, neg both sides: neg(neg one) = neg zro
+    -- neg_neg: one = neg zro; neg_zero: one = zro
+    exact this
+  exact E.one_ne_zro this
+
 /-- inv(-1) = -1. -/
-theorem ExtExpAlgebra.inv_neg_one : E.inv (E.neg E.one) = (E.neg E.one : α) := by
-  sorry -- needs mul_inv_cancel with -1 finite and nonzero (needs one_ne_zro axiom)
+theorem ExtExpAlgebra.inv_neg_one : E.inv (E.neg E.one) = (E.neg E.one : α) :=
+  calc E.inv (E.neg E.one)
+      = E.mul (E.inv (E.neg E.one)) E.one := (E.mul_one _).symm
+    _ = E.mul (E.inv (E.neg E.one)) (E.mul (E.neg E.one) (E.neg E.one)) := by
+        rw [ExtExpAlgebra.neg_one_sq]
+    _ = E.mul (E.mul (E.inv (E.neg E.one)) (E.neg E.one)) (E.neg E.one) := by
+        rw [ExtExpAlgebra.mul_assoc]
+    _ = E.mul E.one (E.neg E.one) := by
+        rw [ExtExpAlgebra.inv_mul_cancel neg_one_finite neg_one_ne_zro]
+    _ = E.neg E.one := ExtExpAlgebra.one_mul _
 
 /-- inv(a·b) = inv(a)·inv(b), for finite nonzero a and b. -/
 theorem ExtExpAlgebra.inv_mul_distrib {a b : α}
-    (ha : Finite a) (hb : Finite b) :
+    (ha : Finite a) (ha_nz : a ≠ E.zro) (hb : Finite b) (hb_nz : b ≠ E.zro) :
     E.inv (E.mul a b) = E.mul (E.inv a) (E.inv b) := by
-  sorry -- needs neg_add with finiteness of ln(a), ln(b)
+  have hla : Finite (E.ln a) := Finite.ln ha ha_nz
+  have hlb : Finite (E.ln b) := Finite.ln hb hb_nz
+  calc E.inv (E.mul a b)
+      = E.exp (E.neg (E.ln (E.mul a b))) := E.inv_def _
+    _ = E.exp (E.neg (E.add (E.ln a) (E.ln b))) := by rw [E.ln_mul]
+    _ = E.exp (E.add (E.neg (E.ln a)) (E.neg (E.ln b))) := by
+        rw [ExtExpAlgebra.neg_add hla hlb]
+    _ = E.mul (E.exp (E.neg (E.ln a))) (E.exp (E.neg (E.ln b))) := by rw [E.exp_add]
+    _ = E.mul (E.inv a) (E.exp (E.neg (E.ln b))) := by rw [← E.inv_def]
+    _ = E.mul (E.inv a) (E.inv b) := by rw [← E.inv_def]
 
 /-! ## Eval helpers -/
 
