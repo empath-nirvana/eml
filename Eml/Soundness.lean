@@ -333,11 +333,29 @@ theorem step_sound_finite (ρ : Nat → α) {a b : Eml} (h : Step a b)
   | add_comm a b =>
     simp only [eval_add', E.add_comm]
   | cancel_exp_ln z =>
-    -- eval = add(exp(ln(ln(z))), neg(ln(z))) = add(ln(z), neg(ln(z))) = 0
-    sorry -- needs eval_ln' + add_neg on ln(eval z) with finiteness from hef
+    have h1 : eval ρ (node (ln' (ln' z)) z)
+            = E.add (E.ln (eval ρ z)) (E.neg (E.ln (eval ρ z))) := by
+      show E.add (E.exp (eval ρ (ln' (ln' z)))) (E.neg (E.ln (eval ρ z))) = _
+      rw [eval_ln', eval_ln', E.exp_ln]
+    have hln_fin : Finite (E.ln (eval ρ z)) := by
+      have h := hef (ln' z)
+      unfold EvalFinite at h
+      rw [eval_ln' ρ z] at h
+      exact h
+    rw [h1, eval_zero]
+    exact E.add_neg _ hln_fin.1 hln_fin.2
   | cancel_ln_exp z =>
-    -- eval = add(exp(z), neg(ln(exp(exp(z))))) = add(exp(z), neg(exp(z))) = 0
-    sorry -- needs eval_exp' + add_neg on exp(eval z) with finiteness from hef
+    have h1 : eval ρ (node z (exp' (exp' z)))
+            = E.add (E.exp (eval ρ z)) (E.neg (E.exp (eval ρ z))) := by
+      show E.add (E.exp (eval ρ z)) (E.neg (E.ln (eval ρ (exp' (exp' z))))) = _
+      rw [eval_exp', eval_exp', E.ln_exp]
+    have hexp_fin : Finite (E.exp (eval ρ z)) := by
+      have h := hef (exp' z)
+      unfold EvalFinite at h
+      rw [eval_exp' ρ z] at h
+      exact h
+    rw [h1, eval_zero]
+    exact E.add_neg _ hexp_fin.1 hexp_fin.2
   | node_l a a' b _ ih =>
     simp only [eval]; rw [ih]
   | node_r a b b' _ ih =>
