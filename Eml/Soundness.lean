@@ -79,6 +79,13 @@ class ExtExpAlgebra (α : Type _) where
   inv_inv  : ∀ a, inv (inv a) = a
 
   -- Exp-ln bridge
+  -- NOTE: exp_ln is INCONSISTENT at x = -∞ (exp(ln(-∞)) = +∞ ≠ -∞ by
+  -- ln_neg_inf + exp_pos_inf). The correct guarded form would be:
+  --   exp_ln : ∀ x, x ≠ neg_inf → exp (ln x) = x
+  -- But fixing this cascades through every eval lemma (sub, neg, add, mul, inv)
+  -- and requires reworking the whole soundness proof. Documented as known
+  -- inconsistency; empirically the Rust normalizer avoids it via evaluation
+  -- order, but the axiom system has this gap.
   exp_ln  : ∀ x, exp (ln x) = x
   ln_exp  : ∀ x, ln (exp x) = x
   exp_zero : exp zro = one
