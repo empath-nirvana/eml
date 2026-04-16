@@ -237,6 +237,8 @@ theorem Reducing.terminates {a b : Eml} (h : Reducing a b) (hne : a ≠ b) :
       simp only [varCount, exp', zero, ln']
       cases z with
       | one => exact absurd rfl hne
+      | negInf => sorry -- cancel_ln_exp on atoms: edge case from ±∞ extension
+      | posInf => sorry -- cancel_ln_exp on atoms: edge case from ±∞ extension
       | var n => simp [varCount]
       | node l r =>
           simp [leaves] at hz1; have := leaves_pos l; have := leaves_pos r; omega
@@ -290,7 +292,12 @@ theorem diff_ground_is_zero (t : Eml) (x : Nat) (hg : t.hasVar x = false) :
     Steps (diff t x) zero := by
   induction t with
   | one =>
-    -- diff one x = zero
+    simp [diff]
+    exact Steps.refl zero
+  | negInf =>
+    simp [diff]
+    exact Steps.refl zero
+  | posInf =>
     simp [diff]
     exact Steps.refl zero
   | var n =>

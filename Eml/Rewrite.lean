@@ -180,8 +180,10 @@ def isOne (t : Eml) : Bool :=
     high-level operations and apply algebraic rules, then rebuilds
     the tree. This is more powerful than pure syntactic matching. -/
 partial def semanticSimplify : Eml → Eml
-  | one   => one
-  | var n => var n
+  | one    => one
+  | negInf => negInf
+  | posInf => posInf
+  | var n  => var n
   | t =>
     -- First, recursively simplify children
     let t := match t with
@@ -229,6 +231,8 @@ partial def semanticSimplify : Eml → Eml
 /-- Recursively try to simplify all subtrees, bottom-up. -/
 partial def simplifyOnce : Eml → Eml
   | one     => one
+  | negInf  => negInf
+  | posInf  => posInf
   | var n   => var n
   | node l r =>
     let l' := simplifyOnce l

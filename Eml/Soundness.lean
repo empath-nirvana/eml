@@ -136,8 +136,10 @@ theorem ExtExpAlgebra.neg_add {a b : α}
 /-- Evaluation of EML trees in an extended exp-ln algebra.
     node(a, b) interprets as eml(a, b) = exp(a) + neg(ln(b)). -/
 def eval (ρ : Nat → α) : Eml → α
-  | .one => E.one
-  | .var n => ρ n
+  | .one    => E.one
+  | .negInf => E.neg_inf
+  | .posInf => E.pos_inf
+  | .var n  => ρ n
   | .node a b => E.add (E.exp (eval ρ a)) (E.neg (E.ln (eval ρ b)))
 
 /-! ## Evaluation of derived operations -/
