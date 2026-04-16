@@ -96,11 +96,18 @@ class ExtExpAlgebra (α : Type _) where
   add_neg_inf : ∀ x, x ≠ pos_inf → add neg_inf x = neg_inf
   add_pos_inf : ∀ x, x ≠ neg_inf → add pos_inf x = pos_inf
 
-  -- Finiteness constraints
+  -- Finiteness closure: finite inputs → finite outputs
+  -- (These are the axioms that let us prove Finite propagates through operations)
+  add_finite : ∀ a b, a ≠ neg_inf → a ≠ pos_inf → b ≠ neg_inf → b ≠ pos_inf →
+      add a b ≠ neg_inf ∧ add a b ≠ pos_inf
+  mul_finite : ∀ a b, a ≠ neg_inf → a ≠ pos_inf → b ≠ neg_inf → b ≠ pos_inf →
+      mul a b ≠ neg_inf ∧ mul a b ≠ pos_inf
   exp_ne_neg_inf : ∀ x, exp x ≠ neg_inf
   exp_ne_pos_inf : ∀ x, x ≠ pos_inf → exp x ≠ pos_inf
   neg_ne_neg_inf : ∀ x, x ≠ pos_inf → neg x ≠ neg_inf
   neg_ne_pos_inf : ∀ x, x ≠ neg_inf → neg x ≠ pos_inf
+  ln_ne_neg_inf  : ∀ x, x ≠ zro → ln x ≠ neg_inf
+  ln_ne_pos_inf  : ∀ x, x ≠ neg_inf → x ≠ pos_inf → ln x ≠ pos_inf
 
 section
 
@@ -139,6 +146,38 @@ theorem ExtExpAlgebra.one_mul (a : α) : E.mul E.one a = a := by
 
 theorem ExtExpAlgebra.zero_mul (a : α) : E.mul E.zro a = E.zro := by
   rw [E.mul_comm]; exact E.mul_zero a
+
+/-! ## Finite closure lemmas -/
+
+theorem Finite.add {a b : α} (ha : Finite a) (hb : Finite b) :
+    Finite (E.add a b) :=
+  E.add_finite a b ha.1 ha.2 hb.1 hb.2
+
+theorem Finite.neg {a : α} (ha : Finite a) : Finite (E.neg a) :=
+  ⟨E.neg_ne_neg_inf a ha.2, E.neg_ne_pos_inf a ha.1⟩
+
+theorem Finite.exp {a : α} (ha : Finite a) : Finite (E.exp a) :=
+  ⟨E.exp_ne_neg_inf a, E.exp_ne_pos_inf a ha.2⟩
+
+theorem Finite.ln {a : α} (ha : Finite a) (ha_nz : a ≠ E.zro) :
+    Finite (E.ln a) :=
+  ⟨E.ln_ne_neg_inf a ha_nz, E.ln_ne_pos_inf a ha.1 ha.2⟩
+
+theorem Finite.mul {a b : α} (ha : Finite a) (hb : Finite b) :
+    Finite (E.mul a b) :=
+  E.mul_finite a b ha.1 ha.2 hb.1 hb.2
+
+private theorem one_finite : Finite (E.one : α) :=
+  ⟨E.neg_inf_ne_one.symm, E.pos_inf_ne_one.symm⟩
+
+private theorem zero_finite : Finite (E.zro : α) :=
+  ⟨E.neg_inf_ne_zro.symm, E.pos_inf_ne_zro.symm⟩
+
+private theorem neg_one_finite : Finite (E.neg E.one : α) :=
+  Finite.neg one_finite
+
+private theorem exp_one_finite : Finite (E.exp E.one : α) :=
+  Finite.exp one_finite
 
 /-! ## Evaluation of derived operations -/
 
