@@ -47,6 +47,8 @@ def isSub? : Eml → Option (Eml × Eml)
     These are the foundational equalities of the algebra. -/
 inductive Step : Eml → Eml → Prop where
   -- Cancellation laws
+  -- NOTE: exp_ln is unguarded here but the axiom is inconsistent at z = -∞.
+  -- See Soundness.lean for the full note. The KB analysis revealed this gap.
   | exp_ln  (z : Eml) : Step (exp' (ln' z)) z
   | ln_exp  (z : Eml) : Step (ln' (exp' z)) z
 
