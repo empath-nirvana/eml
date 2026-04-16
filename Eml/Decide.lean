@@ -236,12 +236,35 @@ private theorem mul_sq (a b : α) :
 /-- i'·π = -ln(-1). Re-derived here (original is private in Trig). -/
 private theorem eval_i_pi (ρ : Nat → α) :
     E.mul (eval ρ i') (eval ρ pi') = E.neg (E.ln (E.neg E.one)) := by
-  sorry -- needs neg_mul + inv_mul_cancel with finiteness of ln(-1) and pi
+  have hi := eval_i' ρ
+  rw [hi]
+  have hpi_fin := eval_pi_finite (α := α) ρ
+  have hpi_nz := eval_pi_nz (α := α) ρ
+  have hone_fin : Finite (E.one : α) := ⟨E.neg_inf_ne_one.symm, E.pos_inf_ne_one.symm⟩
+  have hno_fin : Finite (E.neg E.one : α) := Finite.neg hone_fin
+  have hno_nz : (E.neg E.one : α) ≠ E.zro := by
+    intro h
+    have : E.one = E.zro := by
+      have h1 := congrArg E.neg h
+      rw [E.neg_neg, ExtExpAlgebra.neg_zero] at h1
+      exact h1
+    exact E.one_ne_zro this
+  have hln_fin : Finite (E.ln (E.neg E.one)) := Finite.ln hno_fin hno_nz
+  have hinv_pi_fin : Finite (E.inv (eval ρ pi')) := by
+    rw [E.inv_def]; exact Finite.exp (Finite.neg (Finite.ln hpi_fin hpi_nz))
+  rw [ExtExpAlgebra.neg_mul (Finite.mul hln_fin hinv_pi_fin) hpi_fin]
+  rw [ExtExpAlgebra.mul_assoc]
+  rw [ExtExpAlgebra.inv_mul_cancel hpi_fin hpi_nz]
+  rw [E.mul_one]
 
-/-- i² = -1 (within a fixed ExtExpAlgebra). -/
+/-- i² = -1 (within a fixed ExtExpAlgebra).
+    Uses (iπ)² = i²π² with π² = -L² (pi_squared) and (iπ) = -L (eval_i_pi),
+    giving i²·(-L²) = L², hence i² = -1 via multiplication by inv(L²). -/
 private theorem i_sq_eq (ρ : Nat → α) :
     E.mul (eval ρ i') (eval ρ i') = (E.neg E.one : α) := by
-  sorry -- needs neg_mul, mul_neg, inv_mul_cancel with finiteness of ln(-1) and pi
+  sorry -- complex chain of neg_mul, mul_neg, mul_assoc with finiteness guards
+        -- from eval_pi_nz, eval_i_finite; same structure as the old ExpField
+        -- proof but with finiteness bookkeeping. Left as sorry pending cleanup.
 
 end ISqr
 
