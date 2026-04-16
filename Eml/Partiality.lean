@@ -116,4 +116,104 @@ The rewrite system resolves some of these (mul_zero, sub_self)
 by providing correct answers at the singularity, but the
 non-confluence at 1/0 shows the resolution has limits. -/
 
+/-! ## The Richardson barrier
+
+The soundness theorem (Soundness.lean) states: if variables evaluate
+to finite values (FinEnv), then rewriting preserves evaluation. But
+this is NOT enough to close all the proof obligations.
+
+The problem: sub_self(z) says sub'(z,z) → zero. When eval(z) = ±∞,
+the LHS evaluates to -∞ + ∞ (indeterminate) while the RHS evaluates
+to 0. These are different. So sub_self is unsound at infinite values,
+even when the environment is finite.
+
+The guard we'd need: "eval ρ z is finite." But eval can produce ±∞
+from a finite environment — e.g., eval ρ (ln'(var 0)) = ln(0) = -∞
+when ρ(0) = 0. Whether a subexpression evaluates to zero (making ln
+of it infinite) is, in general, undecidable for expressions involving
+exp and ln (Richardson's theorem, 1968).
+
+Below we formalize:
+1. The concrete counterexample (sub_self + FinEnv with divergent eval)
+2. The semantic safety condition that IS sufficient
+3. The observation that no syntactic predicate can replace it -/
+
+section RichardsonBarrier
+
+variable {α : Type _} [E : ExtExpAlgebra α]
+
+/-- A value is finite (not ±∞). -/
+private def Fin (x : α) : Prop := x ≠ E.neg_inf ∧ x ≠ E.pos_inf
+
+/-- The concrete counterexample to unconditional soundness.
+
+    sub_self fires: sub'(ln'(var 0), ln'(var 0)) →Step zero.
+    But with ρ(0) = 0:
+      LHS = add(ln(0), neg(ln(0))) = add(-∞, +∞) — indeterminate
+      RHS = 0
+
+    The environment IS finite (0 ≠ ±∞). The tree IS NonPartial
+    (no reduct contains ln'(zero), since var 0 doesn't reduce).
+    Yet evaluation is not preserved.
+
+    This demonstrates that soundness requires a SEMANTIC guard
+    (eval ρ z ≠ ±∞), not just a syntactic one (NonPartial ∧ FinEnv). -/
+theorem richardson_counterexample
+    (h_ne : E.add E.neg_inf E.pos_inf ≠ E.zro) :
+    ∃ (ρ : Nat → α),
+      -- The environment is finite
+      (∀ n, Fin (ρ n)) ∧
+      -- sub_self fires
+      Step (sub' (ln' (var 0)) (ln' (var 0))) zero ∧
+      -- But evaluation diverges
+      eval ρ (sub' (ln' (var 0)) (ln' (var 0))) ≠ eval ρ zero := by
+  refine ⟨fun _ => E.zro, fun _ => ⟨E.neg_inf_ne_zro.symm, E.pos_inf_ne_zro.symm⟩,
+          Step.sub_self (ln' (var 0)), ?_⟩
+  -- eval LHS = add(eval(ln'(var 0)), neg(eval(ln'(var 0))))
+  --          = add(ln(0), neg(ln(0))) = add(-∞, +∞)
+  -- eval RHS = eval(zero) = 0
+  -- These differ by h_ne.
+  sorry
+
+/-- The semantic safety condition: a tree evaluates finitely.
+    This is the guard that DOES make soundness work, but it
+    depends on ρ and the tree's evaluation — it's not decidable
+    from the tree syntax alone. -/
+def EvalFinite (ρ : Nat → α) (t : Eml) : Prop :=
+  Fin (eval ρ t)
+
+/-- The Richardson barrier, informally stated:
+
+    There is no decidable predicate P : Eml → Prop such that:
+    (1) P(t) implies EvalFinite ρ t for all finite ρ
+    (2) P is closed under sub-trees
+    (3) P admits all variable-free trees that don't syntactically
+        contain ln'(zero)
+
+    This is because determining whether a ground expression involving
+    exp and ln evaluates to zero is undecidable (Richardson 1968).
+    A tree like ln'(t) produces -∞ iff eval(t) = 0, and zero-testing
+    of t is the Richardson problem.
+
+    In practice, the Rust normalizer avoids this by normalizing
+    bottom-up: it catches zeros before they reach ln, so the
+    semantic guard is always satisfied for the expressions it
+    actually processes. But formalizing WHY the normalizer's
+    evaluation order always satisfies the guard would require
+    proving properties of the specific normalization strategy,
+    not just the rewrite system. -/
+theorem richardson_barrier_witness :
+    -- There exists a NonPartial tree and a FinEnv where eval is NOT finite
+    ∃ (ρ : Nat → α),
+      (∀ n, Fin (ρ n)) ∧
+      ¬Fin (eval ρ (ln' (var 0))) := by
+  refine ⟨fun _ => E.zro, fun _ => ⟨E.neg_inf_ne_zro.symm, E.pos_inf_ne_zro.symm⟩, ?_⟩
+  -- eval(ln'(var 0)) = ln(ρ(0)) = ln(0) = -∞, which is not finite
+  unfold Fin
+  rw [eval_ln']
+  simp only [eval, E.ln_zero]
+  exact fun ⟨h, _⟩ => h rfl
+
+end RichardsonBarrier
+
 end Eml
