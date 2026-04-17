@@ -2,5 +2,9 @@ name = "Eml"
 version = "0.1.0"
 defaultTargets = ["Eml"]
 
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+
 [[lean_lib]]
 name = "Eml"
