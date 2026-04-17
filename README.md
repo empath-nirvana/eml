@@ -397,14 +397,38 @@ commentary — it's what the paper itself reports.
 
 The transition depth is exactly 4 — the first depth where structural
 `ln(0)` can occur. At depth ≤ 3, the tree space is singularity-free
-by construction; gradient descent always finds a tree. At depth 4, a
-growing fraction of the tree space contains `ln(0)` positions;
-gradient descent succeeds only when it navigates around them. At
-depth 5+, the singularity-free trees become sparse in the
-combinatorial space, and random initialization almost never lands in
-a basin that converges.
+by construction; gradient descent always finds a tree (the empirical
+100% at depth 2 corroborates this).
 
-### Why this is actually a structural explanation
+For depth ≥ 4, the story the empirical data suggests — and that the
+depth-4 boundary makes plausible — is that a growing fraction of the
+tree space contains `ln(0)` positions, and gradient-descent
+initialisations from random weights have to navigate away from those
+positions to converge. The convergence drop from ~25% at depth 4 to
+< 1% at depth 5 to 0% at depth 6 is *consistent* with "singularity-
+free trees becoming combinatorially sparse at higher depth," but that
+specific claim has not been proved here — it would require:
+
+- A count of depth-`d` trees containing at least one structural `ln(0)`
+  position vs. those free of them.
+- A proof that gradient descent over softmax parameterisations fails
+  specifically when the optimal tree is near a singularity-containing
+  neighbour in parameter space.
+- Classification of the "basin of convergence" structure for
+  gradient-descent trajectories.
+
+The enumeration script sketched in the "What `{1, eml}` actually
+computes" section could answer the first of these empirically. The
+second and third are genuine gradient-descent analysis questions that
+we do not address.
+
+What *is* established here is the weaker structural fact: depth 4 is
+the first depth at which `ln(0)` can structurally appear in a `{1, eml}`
+tree. That boundary coincides exactly with the paper's reported
+empirical convergence transition. Whether the coincidence is causal in
+the specific way suggested above is plausible but not proved.
+
+### Why this is likely a structural explanation
 
 Previous framings attribute the depth collapse to:
 
@@ -413,36 +437,53 @@ Previous framings attribute the depth collapse to:
 - Vanishing/exploding gradients from nested exp-ln layers.
 - Optimizer-specific failure modes (Adam's step-size adaptation).
 
-These are downstream symptoms. The structural cause is that **the
-tree space at depth ≤ 3 is entirely singularity-free, and the
-fraction of singularity-free trees shrinks combinatorially for
-depths ≥ 4**. Numerical instability amplifies the problem but isn't
-what creates it. An idealised infinite-precision optimizer would
-still face the same combinatorial wall.
+These numerical effects are real, but they don't on their own explain
+*why* the transition sits at depth 4 rather than, say, depth 7 or
+depth 2. The depth-4 structural fact — that `ln(0)` first becomes
+reachable at exactly that depth — is the thing the convergence data
+lines up with sharply.
 
-### Corollary: what the paper actually demonstrated
+The hypothesis we're pointing at is: **convergence failure past depth
+4 is driven by structural singularities, with numerical instability
+as an amplifier, not the root cause**. This is a plausible reading of
+the data given the depth-arithmetic coincidence, but we haven't
+proved the gradient-descent failure mode specifically. An idealised
+infinite-precision optimizer might well face the same wall; it might
+also not; we don't know.
+
+What we do know: the structural boundary is at depth 4, and the
+empirical boundary is at depth 4. That's enough to make the
+structural story the first explanation to consider — and enough to
+raise the question, but not answer it, of whether the numerical
+framings are getting the causal direction right.
+
+### Corollary: a cleaner reframing of the paper's empirical claim
 
 The paper's Section 4.3 empirical claim — "gradient descent recovers
-elementary functions at shallow depths" — unpacks as:
+elementary functions at shallow depths" — could alternatively be read
+as:
 
 > *"Gradient descent recovers tree representations in the depth range
-> where the EML tree space is singularity-free by depth arithmetic."*
+> where the EML tree space does not admit structural `ln(0)`."*
 
-This is a cleaner framing than "gradient descent works at depth ≤ 4."
-It also explains without hand-waving why depth 5 is an insurmountable
-barrier in the reported experiments: it's the first depth at which
-singularity-containing trees outnumber singularity-free ones.
+This is a cleaner framing than "gradient descent works at depth ≤ 4"
+and it lines up with the depth-4 transition observed empirically. The
+stronger claim — *"depth 5+ is combinatorially singular in the
+specific sense that makes gradient descent fail"* — is plausible but
+not established here; counting arguments and gradient-descent basin
+analysis would be needed.
 
-The structural depth-4 boundary is also the boundary of the
-expressiveness class: at depth ≤ 4 you can represent iterated `exp`
-and a few compositions with `ln` of positive values. This is a real
-but very narrow class — roughly `{exp^k(x) : k ≤ 3}` plus a handful
-of compositions.
+The structural depth-4 boundary is also roughly the boundary of the
+cleanly-expressible class: at depth ≤ 4 you can represent iterated
+`exp` and a handful of compositions with `ln` of positive values,
+and the paper's reported successful recoveries (`exp, ln, sqrt, x², x³,
+1/x, sin` per the HN reproduction) are all of this character.
 
-So the paper's "symbolic regression works" regime is a structural
-regime of shallow exp-towers, and the experimental results are
-consistent with exactly this class being learnable by gradient
-descent while deeper trees are combinatorially singular.
+So the paper's "symbolic regression works" regime coincides structurally
+with the depth range where the tree space is singularity-free. Whether
+the *exact mechanism* by which singularities cause gradient-descent
+failure at higher depths is combinatorial, numerical, or both is an
+open question that this note does not answer.
 
 ## A conjecture: no Sheffer operator for the elementary functions
 
