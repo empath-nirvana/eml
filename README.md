@@ -485,6 +485,130 @@ the *exact mechanism* by which singularities cause gradient-descent
 failure at higher depths is combinatorial, numerical, or both is an
 open question that this note does not answer.
 
+## Empirical confirmation: the paper's own compiler
+
+The paper ships a Python compiler (`eml_compiler_v4.py`) that translates
+Wolfram-style expressions to EML trees and verifies them numerically.
+Running the compiler against the formal refutation reveals two independent
+forms of unsoundness, one in each direction of the translation.
+
+### Direction A: Compilation is unsound (Wolfram → SymPy → EML)
+
+The compiler routes every expression through SymPy for simplification
+*before* encoding it as an EML tree. SymPy's algebraic simplifier ignores
+domain restrictions on `log`:
+
+```python
+from sympy import log, symbols, simplify
+x = symbols("x")
+simplify(log(x) - log(x))   # → 0, no domain check; ask(Q.positive(x-y)) returns None
+```
+
+**Example A1: `Subtract[Log[x], Log[x]]` at `x = 0`.**
+Mathematically, `log(0) − log(0)` is `−∞ − (−∞)`, indeterminate. SymPy
+simplifies `log(x) − log(x) → 0` without checking `x > 0`, then the
+compiler emits `eml_zero()`. The compiled tree returns `0` at `x = 0`
+where the correct answer is `NaN`.
+
+**Example A2: `Plus[Log[x], Log[y]]` vs `Log[Times[x, y]]` at negative inputs.**
+SymPy treats `log(x) + log(y) = log(x·y)` universally. For `x = y = −2`,
+the two compiled EML trees take different complex-log branches and disagree —
+the equivalence holds only on `ℝ₊`.
+
+**Example A3: Two representations, different functions.**
+`Subtract[Log[Subtract[x,y]], Log[Subtract[x,y]]]` at `(x, y) = (1, 1)`:
+- Via compiler (SymPy pre-simplification): simplifies to `0` → emits
+  `eml_zero()` → returns `0.0`.
+- Via primitive API (no SymPy): `eml_sub(eml_log(eml_sub("x","y")),
+  eml_log(eml_sub("x","y")))` → returns `NaN`.
+- Mathematically: `log(1−1) − log(1−1) = log(0) − log(0)`, undefined.
+
+The compiler is wrong (claims 0 for an undefined input). The primitive API
+is wrong (should give 0 by `sub_self`, gives NaN). Both are wrong, in
+opposite directions.
+
+### Direction B: Verification is unsound (EML → `np.real()` → compare)
+
+The paper's test harness (`test_eml_numpy.py`) extracts only the real part
+of the output:
+
+```python
+z   = eml_f(np.complex128(x))
+got = float(np.real(z))       # imaginary part silently discarded
+ref = float(ref_fn(x))
+re_err = got - ref            # test passes if |re_err| < tolerance
+```
+
+EML trees route all arithmetic through complex `exp` and `log`, so they
+produce non-zero imaginary parts even on purely real inputs. The imaginary
+component is recorded in the harness but never triggers a test failure.
+
+**Example B1: `Minus[x]`** — real part is always correct, imaginary part
+≈ `2.4e-16` (machine epsilon). Every test passes. But the function maps
+`ℝ → ℂ`, not `ℝ → ℝ`.
+
+**Example B2: `Plus[Log[x], Log[y]]` at `x = y = −2`** — imaginary part
+≈ `2π ≈ 6.28`, as large as the real part. `np.real()` discards it. The
+test passes because only the real error is measured — but the function
+returns a complex number with a ≈ 6 imaginary component.
+
+### The double shield
+
+The paper's verification is structurally protected from the `sub_self` NaN
+contradiction by two layered mechanisms:
+
+1. **Depth shield**: the test suite (`run_unary_suite_numpy.py`) uses only
+   depth-1 expressions — one Wolfram function applied to raw `x`; e.g.
+   `("Half[x]", −4, 4, 0.125)`, `("Minus[x]", −4, 4, 0.125)`. The NaN
+   contradiction first appears in structural composition at depth 3+, so
+   the test suite never reaches it.
+
+2. **SymPy shield**: when a depth-3 expression goes through the Wolfram
+   compiler, SymPy collapses `log(f) − log(f) → 0` algebraically before EML
+   encoding. A structurally depth-80+ tree becomes the depth-3 `eml_zero()`
+   constant. SymPy does the algebraic work; EML never sees the composed form.
+
+Neither shield is acknowledged in the paper. Together they make the
+verification appear complete while the structural unsoundness goes untested.
+The contradiction only surfaces by bypassing the compiler and using the
+primitive API directly:
+
+```python
+inner = eml_sub("x", "y")
+tree  = eml_sub(eml_log(inner), eml_log(inner))
+# eml_eval(tree, {"x": 1.0, "y": 1.0}) → NaN   (not 0)
+```
+
+### Why the `ℝ₊` restriction does not fix this
+
+The paper (Section 3.5) suggests restricting all inputs and intermediate
+values to `ℝ₊` to avoid the `ln(0)` singularity. But `sub(a, b) = a − b`
+maps `ℝ₊ × ℝ₊ → ℝ`, not `ℝ₊ × ℝ₊ → ℝ₊`: two positive numbers can
+subtract to zero or a negative.
+
+**Concrete failure at positive inputs**: `sub(1, 1) = 0` with `1, 1 ∈ ℝ₊`.
+The inner `eml_sub` returns exactly `0.0` in IEEE 754, `ln(0) = −∞`, and
+the `sub_self` NaN cascade fires:
+
+```
+eml_sub(eml_log(eml_sub("x","y")), eml_log(eml_sub("x","y")))
+at x=1, y=1 (both positive reals): → NaN
+```
+
+**Structural imaginary bleed at positive inputs**: `Power[Log[Subtract[x, 2]], 2]`
+at `0 < x < 2`. When `x < 2`, `Subtract[x, 2]` is negative; `Log` of a
+negative gives `log|x−2| + iπ`; squaring gives `log|x−2|² − π²`. The
+real part is wrong by exactly `π² ≈ 9.87` — not floating-point noise, a
+structural imaginary-to-real bleed.
+
+A model trained on `x > 2` (where all intermediates are positive) would
+appear correct under the paper's verification harness. Evaluated at
+`0 < x < 2` — still positive inputs — the same EML tree gives a real-part
+error of ≈ 9.87 at every sample point, concentrated precisely at the
+structural boundary where the intermediate value leaves `ℝ₊`. The `ℝ₊`
+restriction on inputs does not prevent `ℝ₊`-to-ℝ intermediate values
+from breaking the encoding.
+
 ## A conjecture: no Sheffer operator for the elementary functions
 
 Everything above concerns `eml(x, y) = exp(x) − ln(y)` specifically.
