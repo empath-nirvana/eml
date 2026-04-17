@@ -164,6 +164,28 @@ And this view does fix one specific refutation.
   subset of ℝ — but any such restriction brings back the problems the
   relaxation was meant to escape.
 
+* **There is no natural target class the paper can retreat to.** A tempting
+  response to the cardinality break: *"Fine, EML doesn't characterise the
+  elementary functions; it characterises some larger analytic class that
+  happens to have the right cardinality."* This doesn't work either. EML
+  under any grammar does not reach most non-elementary analytic functions:
+
+  | Candidate target class | EML's relation to it |
+  |---|---|
+  | Elementary functions (stated target) | strict superset under `{ℝ, eml}` (smuggles non-elementary constants); strict subset in evaluation under `{1, eml}` (operations fail). Never equals. |
+  | Analytic functions on ℂ | strict subset — gamma, Riemann zeta, erf, Bessel J_0, Weierstrass sigma, and most named special functions are *not* finite exp-ln compositions, regardless of what constants appear as leaves. |
+  | Computable functions | incomparable — EML admits non-computable reals as leaves; most computable functions aren't exp-ln compositions. |
+  | *"Elementary-in-x with arbitrary real coefficients"* (the actual class) | equal (roughly) — but this is a non-standard class, defined by reference to EML, with no independent mathematical characterisation. |
+
+  The only class that matches EML's expressiveness under `{ℝ, eml}` is the
+  one defined *by* EML itself, which makes the claim *"EML generates X"*
+  tautological for `X = EML-expressible functions`. That is not a theorem.
+  Every natural classical class — elementary, analytic, meromorphic,
+  computable — is either a strict subset, a strict superset, or incomparable
+  to EML-expressible. So the paper has nowhere to retreat: it cannot keep
+  "elementary functions" as the target (cardinality mismatch), and it cannot
+  substitute any other standard class (EML doesn't match any of them).
+
 * **Non-elementary values smuggled in as leaves.** If leaves can be arbitrary
   reals, they can include `γ` (Euler-Mascheroni, widely conjectured
   non-elementary), Catalan's constant, Chaitin's `Ω` (non-computable),
