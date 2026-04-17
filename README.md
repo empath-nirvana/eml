@@ -641,6 +641,33 @@ any partial member of the elementary class (e.g. `ln`, `1/z`, `tan`,
 *Proof.* Structural induction on trees. No analytic content.
 Formalized without axioms.
 
+### Theorem 2 — the natural domain of a tree is undecidable
+
+Even when a partial operator produces a tree `T` whose values
+match a target function on many inputs, the set of inputs where
+`T` evaluates successfully — the *natural domain* of `T` — is in
+general not computably decidable.
+
+**Statement.** Let `E` be a set and `P : E → Prop` a property
+for which no computable function `d : E → {0,1}` satisfies
+`d(e) = 1 ↔ P(e)`. Suppose a model `(α, ⊙, c)` admits a map
+`φ : E → Tree(ι)` such that for every `e ∈ E`, the natural domain
+of `φ(e)` is all of `α` if and only if `¬P(e)`. Then the predicate
+"`dom(T) = α`" on `T(ι)` is not computably decidable.
+
+*Proof.* A decider `δ` for `dom(T) = α` would give `d(e) := ¬δ(φ(e))`,
+which would decide `P` — contradicting the hypothesis. Formalized
+in `Eml/NoSheffer.lean` from first principles; uses Richardson 1968
+as its input.
+
+**Operational consequence.** If someone attempts to represent a
+total function `f` via a tree over a partial elementary operator,
+the theorem above combined with Theorem 3 gives: either the tree
+fails to represent `f` pointwise, or it represents `f` only on a
+strict subset of `ℂ` whose boundary (the set of inputs where the
+tree breaks) is undecidable. So even giving up pointwise correctness
+does not yield an algorithmically checkable approximation.
+
 ### Elementary barrier (unformalized classical theorem)
 
 If `E ∈ ElemExpr` is partial (so `⟦E⟧` returns `⊥` on some input
