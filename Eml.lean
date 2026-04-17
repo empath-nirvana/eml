@@ -11,5 +11,6 @@ import Eml.KB
 import Eml.Trig
 import Eml.Decide
 import Eml.Confluence
+import Eml.Refutation
 -- import Eml.Soundness  -- semantic layer; ExpField axioms need revision
 -- import Eml.Tower       -- tower-based Liouville; depends on Soundness
