@@ -268,12 +268,20 @@ theorem eval_zero_constant (ρ : Nat → α) : eval ρ zero = some M.zero := by
   rw [eval_node, eval_one, h2]
   simp [M.ln_exp_id, M.sub_self]
 
-/-- The constant `negOne` (= `sub'(zero, one) = -1`) evaluates to `none`
-    in any PartialModel, because its encoding passes through `ln(zero)`.
+/-- The **paper's default encoding** of `-1`, namely
+    `negOne = sub'(zero, one) = eml(ln'(zero), exp'(one))`, evaluates to
+    `none` in any PartialModel because its encoding passes through
+    `ln(zero)`.
 
-    **This is the sharpest form of the central-claim refutation**: EML+1
-    does not even generate `-1` as an evaluable tree in the paper's
-    stated semantics. -/
+    This refutes the paper's *specific exhibited construction* of `-1`,
+    not the existence of any EML tree evaluating to `-1`. The paper's
+    Table 4 reports that exhaustive search finds an alternative tree
+    for `-1` at K=15 (or K=11 using extended-reals conventions) — a
+    hand-crafted construction that evaluates cleanly but isn't the
+    compositional `sub'(zero, 1)` form. See `non_confluence_via_alternative_witness`
+    for the consequence: any such alternative disagrees with the default
+    encoding pointwise, so the two cannot be identified without
+    unsoundness. -/
 theorem negOne_not_evaluable (ρ : Nat → α) : eval ρ negOne = none := by
   -- negOne = sub'(zero, one) = node (ln'(zero)) (exp'(one))
   -- ln'(zero) = node one (exp' (node one zero)) = node one (node (node one zero) one)
@@ -293,11 +301,17 @@ theorem negOne_not_evaluable (ρ : Nat → α) : eval ρ negOne = none := by
   show eval (α := α) ρ (node (ln' zero) (exp' one)) = none
   exact eval_node_left_none h3
 
-/-- **The negation operator fails at every input.**
-    The paper's `neg'(z) = sub'(zero, z)` encoding structurally
-    contains `ln'(zero)` (as the left child of the outer `sub'`).
-    Regardless of what `z` is, evaluation passes through `ln(0)` and
-    fails. No input environment rescues this. -/
+/-- **The paper's `neg'` encoding fails at every input.**
+    `neg'(z) = sub'(zero, z)` structurally contains `ln'(zero)` (as the
+    left child of the outer `sub'`). Regardless of what `z` is,
+    evaluation passes through `ln(0)` and fails. No input environment
+    rescues this.
+
+    As with `negOne_not_evaluable`, this is about the paper's *specific
+    compositional encoding* of negation, not about whether some
+    alternative hand-crafted EML tree represents the negation function.
+    The alternative-witness chain `1 - (e - ((e-1) - z))` does evaluate
+    — see `non_confluence_via_alternative_witness`. -/
 theorem neg_not_evaluable (z : Eml) (ρ : Nat → α) : eval ρ (neg' z) = none := by
   -- neg' z = sub'(zero, z) = node (ln'(zero)) (exp'(z))
   -- ln'(zero) evaluates to none by the same chain as negOne's inner failure.
@@ -311,17 +325,24 @@ theorem neg_not_evaluable (z : Eml) (ρ : Nat → α) : eval ρ (neg' z) = none 
   show eval (α := α) ρ (node (ln' zero) (exp' z)) = none
   exact eval_node_left_none h3
 
-/-- **The addition operator fails at every input.**
+/-- **The paper's `add'` encoding fails at every input.**
     `add'(a, b) = sub'(a, neg'(b))` contains `neg'(b)` in the
     right-child position of the outer `sub'`. That right child
     reaches `exp'(neg'(b))`, and `neg'(b)` is always unevaluable
     by `neg_not_evaluable`.
 
-    Consequence: EVERY EML tree produced by the paper's compilation
-    that contains an addition anywhere is structurally unevaluable.
-    This covers almost all elementary functions — `mul` (which is
-    `exp(ln a + ln b)`), `pow`, `div`, all polynomials, `sin` and
-    `cos` via Euler's formula, and so on. -/
+    Consequence: every EML tree produced by the paper's default
+    compilation that contains an `add'` anywhere is structurally
+    unevaluable. This covers `mul'` (which uses `add'`), `div'`,
+    `pow'`, and the paper's default constructions of polynomials,
+    `sin`, `cos`, etc.
+
+    This does NOT claim that no EML tree represents addition — the
+    alternative-witness technique can produce evaluable trees for
+    specific sums. What fails is the paper's compositional scheme
+    (the `Constructors.lean` chain), not the *existence* of
+    evaluable trees. The alternatives form a non-confluent collection
+    that cannot be canonicalized (`no_canonical_normalization`). -/
 theorem add_not_evaluable (a b : Eml) (ρ : Nat → α) :
     eval ρ (add' a b) = none := by
   -- add' a b = sub' a (neg' b) = node (ln' a) (exp' (neg' b))
@@ -337,9 +358,15 @@ theorem add_not_evaluable (a b : Eml) (ρ : Nat → α) :
   rw [eval_node, h_exp]
   cases eval (α := α) ρ (ln' a) <;> rfl
 
-/-- The constant `two` (= `sub'(one, negOne) = 2`) evaluates to `none`,
-    because its encoding contains `exp'(negOne)` whose child is
-    unevaluable. -/
+/-- The **paper's default encoding** of `2`, namely
+    `two = sub'(one, negOne)`, evaluates to `none` because it contains
+    `exp'(negOne)` whose child (`negOne`) is unevaluable via
+    `negOne_not_evaluable`.
+
+    As with `negOne`, this is a statement about the paper's specific
+    compositional encoding, not about whether any EML tree evaluates
+    to `2`. Table 4 reports a K=19 tree for `2` found by direct search;
+    that tree is not this one. -/
 theorem two_not_evaluable (ρ : Nat → α) : eval ρ two = none := by
   -- two = sub'(one, negOne) = node (ln'(one)) (exp'(negOne))
   -- exp'(negOne) = node negOne one, with left child `negOne` evaluating to none.
