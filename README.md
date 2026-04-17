@@ -78,6 +78,130 @@ So the alternative witness creates a different form of the failure
 evaluations, no algorithmic bridge between them) rather than curing
 the original.
 
+## What if we allow real numbers as leaves?
+
+The paper is persistently ambiguous about what a variable `z` *is*.
+When it writes
+
+    sin(z) = eml(1, eml(eml(1, z), 1))
+
+the `z` on both sides is doing two jobs simultaneously:
+
+1. A **syntactic placeholder** — a leaf position in the tree on the right.
+2. A **real number** ranging over ℂ — the argument of the function on the left.
+
+Informal math conflates these; formal math has to split them. `Refutation.lean`
+uses the standard setup: trees have a constructor `var : Nat → Eml`, and
+evaluation takes an environment `ρ : Nat → α` that binds each variable to a
+semantic value. This lets `var 0` (a tree leaf) be distinct from `ρ 0` (the
+value it takes on a given call).
+
+A reasonable reader response: *"The paper isn't really talking about the
+`{1, eml}` grammar with formal variables. It's talking about trees whose
+leaves can be any real number — variables just indicate which leaves vary."*
+That reading gives a richer grammar:
+
+    Eml ::= r (for r ∈ ℝ) | var Nat | eml(Eml, Eml)
+
+This is almost certainly what the paper's Mathematica toolchain actually does
+in practice. And it does fix one specific refutation.
+
+### What the `{ℝ, eml}` grammar fixes
+
+* **Constants stop being derived.** `−1 = leaf(−1)`, `2 = leaf(2)`, `π = leaf(π)`.
+  No `ln(0)` detour, no need to construct from `1`. Our `negOne_not_evaluable`
+  and `two_not_evaluable` theorems stop applying because the constants are no
+  longer those specific trees.
+* **The syntax/value mismatch for specific numbers disappears.** "3 as a tree"
+  and "3 as a real" are now the same object (`leaf(3)`) instead of two
+  different things written the same way.
+
+### What the `{ℝ, eml}` grammar breaks or leaves broken
+
+* **The paper's minimality claim is gone.** "One operator, one distinguished
+  constant" (Section 5, p. 15) becomes "one operator plus uncountably many
+  real primitives." That is not a Sheffer-style basis. The NAND analogy, which
+  relies on a finite generating set, is completely lost.
+
+* **Cardinality mismatch flips direction.** EML trees under `{ℝ, eml}` are
+  uncountable (one degree of uncountability per real leaf). The elementary
+  functions are countable (defined by finite expressions over a countable
+  signature). So the class EML now expresses is a **strict superset** of the
+  elementary functions. The claim *"EML generates the elementary functions"*
+  stops being a characterisation — one direction is trivially true ("every
+  elementary function is expressible"), the other is false ("EML expresses
+  only elementary functions" — no, it also expresses `f(x) = γ · x` for
+  Euler-Mascheroni `γ`, conjecturally non-elementary).
+
+* **Non-elementary values smuggled in as leaves.** If leaves can be arbitrary
+  reals, they can include `γ` (Euler-Mascheroni, widely conjectured
+  non-elementary), Catalan's constant, Chaitin's `Ω` (non-computable),
+  specific Liouville reals, and so on. The "generating set" now contains
+  values not in the class being generated. The `eml` operator becomes
+  decorative — it doesn't generate new values; the leaves already cover ℝ.
+
+* **Structural operation failures persist.** The paper's encoding
+  `sub'(x, y) = eml(ln x, exp y)` still hits `ln(0)` when `x = leaf(0)`.
+  `neg'(z) = sub'(zero, z)` still contains `ln(0)` regardless of whether
+  `zero` is `ln'(1)` or `leaf(0)` — it's the outer `ln'` of the first
+  argument that fails. `add'`, `mul'` inherit via `neg'`. These are properties
+  of the *encodings*, not the *leaf language*, so the cascade
+  `neg_not_evaluable → add_not_evaluable → …` carries over with minor
+  rephrasing.
+
+* **Richardson-undecidability is unchanged.** Tree-substitution is required
+  for function composition (you cannot express `f ∘ g` in EML without
+  substituting one tree into another tree's variable position). The
+  substituted trees can express Richardson's full signature via the paper's
+  own constructions. Zero-testing remains Richardson-undecidable regardless
+  of what the leaves are.
+
+* **Alternative-witness non-confluence is unchanged.** Different trees for
+  the same function still disagree on evaluability. The relaxed grammar gives
+  you more trees to choose from, which if anything makes the non-confluence
+  more pronounced.
+
+### The type-mixing problem
+
+Because EML has a single variable type, a term like `3 * 2` admits two
+inconsistent readings:
+
+* **Tree × Tree**: `mul'(leaf(3), leaf(2))` — an EML tree, to be evaluated
+  downstream. Under the paper's `mul'` encoding, this routes through `add'`
+  which routes through `neg'` which still hits `ln(0)`.
+* **Tree × Real**: take `mul_by_3(x) = mul'(leaf(3), var(0))` and *bind* `var 0`
+  to the real value `2.0` at evaluation time. If the encoding happens to route
+  around the failure (as it does at Schanuel-generic real inputs), you get `6.0`.
+
+These are different operations — one is tree-substitution, one is
+real-evaluation — and they do not in general produce the same result. The
+paper's verification methodology (`VerifyBaseSet`) uses real-binding
+exclusively; the central claim of "generating" requires tree-substitution.
+With only one variable type, the two readings are impossible to distinguish
+in notation, and the paper silently uses whichever is convenient at each
+step. This is the type-theoretic core of why the paper's apparatus *appears*
+to verify claims that are in fact false under the semantics the paper
+implies.
+
+### Why neither grammar works
+
+Summarised:
+
+| Grammar | Cardinality of trees | Match to elementary class | Minimality claim | Structural failures |
+|---|---|---|---|---|
+| `{1, eml}` (strict) | countable | potentially tight | "one operator, one constant" | constants, operations, composition all hit `ln(0)` |
+| `{ℝ, eml}` (relaxed) | uncountable | strict superset (smuggles non-elementary) | lost — uncountable primitives | constants fixed; operations still hit `ln(0)` |
+
+* Under `{1, eml}`, the paper's rhetorical framing is preserved but the
+  evaluations structurally fail.
+* Under `{ℝ, eml}`, the evaluations at specific constants succeed but the
+  rhetorical framing collapses (no minimality, wrong cardinality, non-elementary
+  smuggling, operator-is-decorative).
+
+The paper's claim — a tight, Sheffer-style generation of the elementary
+functions from `{1, eml}` — requires both the strict grammar *and* the clean
+evaluations, and neither grammar delivers both.
+
 ## Key theorems
 
 Located in `Eml/Refutation.lean`. All unconditional (hold in any
