@@ -98,13 +98,26 @@ value it takes on a given call).
 
 A reasonable reader response: *"The paper isn't really talking about the
 `{1, eml}` grammar with formal variables. It's talking about trees whose
-leaves can be any real number — variables just indicate which leaves vary."*
-That reading gives a richer grammar:
+leaves can be any real number. The `1` in the paper's examples isn't a
+privileged constructor — it's just one possible value a leaf can take,
+indistinguishable from any other real. Variables are substitution
+positions admitting any Eml element — a leaf (carrying any real) or a
+whole subtree."*
 
-    Eml ::= r (for r ∈ ℝ) | var Nat | eml(Eml, Eml)
+That reading collapses the grammar to two constructors:
 
-This is almost certainly what the paper's Mathematica toolchain actually does
-in practice. And it does fix one specific refutation.
+    Eml ::= r (for r ∈ ℝ) | eml(Eml, Eml)
+
+with "variables" understood as meta-level positions in a tree that
+admit substitution of any Eml element (leaf or node). The leaf `1` is
+not a constructor on its own; it is the specific leaf `leaf(1)`, on
+par with `leaf(−1)`, `leaf(π)`, `leaf(γ)`, etc.
+
+This is almost certainly what the paper's Mathematica toolchain actually
+does in practice. Mathematica doesn't have a distinguished `1` atom and
+a grammar that reaches other constants through construction — it just
+has real numbers and operations on them, with `1` as an ordinary literal.
+And this view does fix one specific refutation.
 
 ### What the `{ℝ, eml}` grammar fixes
 
@@ -132,6 +145,24 @@ in practice. And it does fix one specific refutation.
   elementary function is expressible"), the other is false ("EML expresses
   only elementary functions" — no, it also expresses `f(x) = γ · x` for
   Euler-Mascheroni `γ`, conjecturally non-elementary).
+
+* **No correspondence between EML trees and elementary functions is possible
+  even in theory.** This is the sharpest version of the cardinality point.
+  Under `{1, eml}`, EML trees form a countable class; the elementary functions
+  are also countable. A bijection or characterisation between them is at
+  least *conceivable* in principle — the two classes have the right cardinality
+  to correspond. Under `{ℝ, eml}`, EML trees are uncountable while elementary
+  functions are countable. **No function from the uncountable set of EML
+  trees to the countable set of elementary functions can be injective**, and
+  no subset of EML trees isomorphic to the elementary functions is picked out
+  by the grammar itself. The relaxed grammar doesn't merely fail the paper's
+  claim; it makes the claim vacuous as a theorem about elementary functions,
+  because the EML-expressible class and the elementary class are fundamentally
+  different mathematical objects (different cardinalities, different
+  constructors, different characterising properties). To recover a
+  correspondence, one must *restrict* the leaves to some specific countable
+  subset of ℝ — but any such restriction brings back the problems the
+  relaxation was meant to escape.
 
 * **Non-elementary values smuggled in as leaves.** If leaves can be arbitrary
   reals, they can include `γ` (Euler-Mascheroni, widely conjectured
