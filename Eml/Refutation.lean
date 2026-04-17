@@ -293,6 +293,50 @@ theorem negOne_not_evaluable (ρ : Nat → α) : eval ρ negOne = none := by
   show eval (α := α) ρ (node (ln' zero) (exp' one)) = none
   exact eval_node_left_none h3
 
+/-- **The negation operator fails at every input.**
+    The paper's `neg'(z) = sub'(zero, z)` encoding structurally
+    contains `ln'(zero)` (as the left child of the outer `sub'`).
+    Regardless of what `z` is, evaluation passes through `ln(0)` and
+    fails. No input environment rescues this. -/
+theorem neg_not_evaluable (z : Eml) (ρ : Nat → α) : eval ρ (neg' z) = none := by
+  -- neg' z = sub'(zero, z) = node (ln'(zero)) (exp'(z))
+  -- ln'(zero) evaluates to none by the same chain as negOne's inner failure.
+  have hz : eval (α := α) ρ zero = some M.zero := eval_zero_constant ρ
+  have h1 : eval (α := α) ρ (node one zero) = none :=
+    eval_node_right_zero hz
+  have h2 : eval (α := α) ρ (node (node one zero) one) = none :=
+    eval_node_left_none h1
+  have h3 : eval (α := α) ρ (node one (node (node one zero) one)) = none := by
+    rw [eval_node, eval_one, h2]; rfl
+  show eval (α := α) ρ (node (ln' zero) (exp' z)) = none
+  exact eval_node_left_none h3
+
+/-- **The addition operator fails at every input.**
+    `add'(a, b) = sub'(a, neg'(b))` contains `neg'(b)` in the
+    right-child position of the outer `sub'`. That right child
+    reaches `exp'(neg'(b))`, and `neg'(b)` is always unevaluable
+    by `neg_not_evaluable`.
+
+    Consequence: EVERY EML tree produced by the paper's compilation
+    that contains an addition anywhere is structurally unevaluable.
+    This covers almost all elementary functions — `mul` (which is
+    `exp(ln a + ln b)`), `pow`, `div`, all polynomials, `sin` and
+    `cos` via Euler's formula, and so on. -/
+theorem add_not_evaluable (a b : Eml) (ρ : Nat → α) :
+    eval ρ (add' a b) = none := by
+  -- add' a b = sub' a (neg' b) = node (ln' a) (exp' (neg' b))
+  -- exp' (neg' b) = node (neg' b) one. Its left child is neg' b.
+  -- eval of neg' b is none (neg_not_evaluable).
+  -- So eval of exp' (neg' b) is none.
+  -- So the outer sub' is none (right child is none).
+  have h_neg : eval (α := α) ρ (neg' b) = none := neg_not_evaluable b ρ
+  have h_exp : eval (α := α) ρ (exp' (neg' b)) = none :=
+    eval_node_left_none h_neg
+  -- add' a b = node (ln' a) (exp' (neg' b)). Right child is none.
+  show eval (α := α) ρ (node (ln' a) (exp' (neg' b))) = none
+  rw [eval_node, h_exp]
+  cases eval (α := α) ρ (ln' a) <;> rfl
+
 /-- The constant `two` (= `sub'(one, negOne) = 2`) evaluates to `none`,
     because its encoding contains `exp'(negOne)` whose child is
     unevaluable. -/
@@ -390,6 +434,139 @@ theorem no_decidable_sub_self_guard :
     ¬ ∃ (guard : Eml → Bool),
         ∀ t : Eml, guard t = true ↔ @IsIdenticallyZero RealEM _ t :=
   richardson_eml_real
+
+/-! ## Alternative witnesses create non-confluence
+
+A natural response to `negOne_not_evaluable`: *"OK, the specific
+tree `sub'(zero, 1)` doesn't evaluate, but there are alternative
+encodings of `−1` that do — for instance
+`1 − (e − ((e − 1) − 1)) = −1` as the tree
+`sub'(1, sub'(e, sub'(e−1, 1)))`, which evaluates cleanly since
+none of its `ln` arguments is zero."*
+
+The alternative witness exists. It doesn't rescue the central claim
+— it sharpens the refutation. The paper's apparatus can produce
+EITHER form for `−1` through legitimate derivations:
+
+  * The original form arises from any expression routed through
+    `sub(a, a) → 0 → sub(zero, 1)`.
+  * The alternative form arises from any expression routed through
+    `1 − (e − ((e−1) − z))` with `z = 1`.
+
+Both are valid "encodings of `−1`" by the paper's own Constructions
+criterion. Neither is privileged. But they have different evaluation
+behavior: the original is `none` everywhere, the alternative is
+`some value` (in any classical model).
+
+**Consequence.** Any equational theory identifying the two (as the
+paper's central claim requires — both are supposed to be `−1`) is
+unsound with respect to pointwise tree evaluation. No computable
+normalization procedure maps one form to the other, because such
+a procedure would decide equality of trees-as-functions, which is
+Richardson-undecidable.
+
+The alternative witness is not an escape. It is a second instance
+of non-confluence, provided by the paper itself. -/
+
+/-- **Non-confluence via alternative witnesses.**
+    If any EML tree `alt` evaluates successfully at some environment
+    `ρ`, then `alt` disagrees with `negOne` at that environment —
+    because `negOne` evaluates to `none` everywhere (`negOne_not_evaluable`).
+
+    So the paper's own claim that both `negOne` and `alt` encode `−1`
+    makes its implicit equational theory unsound: it proves equal two
+    trees with different pointwise evaluations. The alternative
+    witness is a witness to non-confluence, not a rescue. -/
+theorem non_confluence_via_alternative_witness :
+    ∀ (alt : Eml) (ρ : Nat → α) (v : α),
+      eval ρ alt = some v →
+      eval ρ negOne ≠ eval ρ alt := by
+  intros alt ρ v h_alt
+  rw [negOne_not_evaluable, h_alt]
+  intro h
+  cases h
+
+/-- Corollary: no computable normalization procedure maps arbitrary
+    trees to a canonical form characterising identical-zero-ness
+    in the real elementary function model.
+
+    If such a `normalize` existed, `fun t => decide (normalize t = normalize zero)`
+    would be a decidable zero-testing guard for EML trees — exactly
+    the thing `richardson_eml_real` forbids.
+
+    This is the formal statement of *"there is no way to normalise
+    one form to the other."* -/
+theorem no_canonical_normalization :
+    ¬ ∃ (normalize : Eml → Eml),
+        ∀ t : Eml,
+          (normalize t = normalize zero) ↔ @IsIdenticallyZero RealEM _ t := by
+  rintro ⟨normalize, h⟩
+  apply richardson_eml_real
+  refine ⟨fun t => decide (normalize t = normalize zero), ?_⟩
+  intro t
+  rw [decide_eq_true_iff]
+  exact h t
+
+/-! ## VerifyBaseSet cannot witness the failure
+
+The paper's verification method (`VerifyBaseSet`, p. 7) substitutes
+Schanuel-generic transcendental constants (Euler–Mascheroni `γ`,
+Glaisher–Kinkelin `A`, …) for the free variables of a tree `t` and
+a target expression `E`, then checks numerical equality of the
+results. Under Schanuel, agreement at such transcendentally-independent
+points is taken as evidence of functional equality.
+
+**The blind spot.** Schanuel-generic points are chosen precisely so
+that no intermediate subexpression accidentally vanishes — otherwise
+the Schanuel-based soundness argument would not apply. So these
+points *avoid* the zero set of every `ln`-argument subtree in the
+EML encoding. But the zero set of `ln`-arguments is exactly where
+the encodings fail.
+
+The method therefore cannot sample the inputs at which the central
+claim (strong form) would be refuted. VerifyBaseSet can at best
+establish the *hedged* claim — agreement on the dense open set
+where the tree is evaluable — not the strong claim.
+
+We formalize this by exhibiting a specific failure at a non-generic
+point that VerifyBaseSet would never sample. -/
+
+/-- A "generic" environment for the subtraction encoding:
+    one where `var 0` does not take the value zero. By definition,
+    VerifyBaseSet samples only from a subset of such environments —
+    specifically, ones whose coordinates are algebraically independent
+    transcendentals. -/
+def GenericForSub (ρ : Nat → α) : Prop := ρ 0 ≠ M.zero
+
+/-- **VerifyBaseSet's blind spot.**
+    The environment `badEnv` is non-generic (it sets `var 0 = zero`),
+    and the paper's `sub'` encoding fails there. Since VerifyBaseSet
+    only samples from generic environments, this failure is outside
+    its witness set. The method therefore cannot refute the strong
+    central claim — it systematically avoids the inputs at which
+    refutation would occur.
+
+    Concretely: `¬ GenericForSub badEnv` holds (the point is non-
+    generic), and `eval badEnv (sub'(var 0, var 1)) = none` (the
+    tree fails there). -/
+theorem verify_base_set_blind_to_sub_failure :
+    ¬ GenericForSub (α := α) badEnv ∧
+    eval (α := α) badEnv (sub' (var 0) (var 1)) = none :=
+  ⟨fun h => h rfl, sub_fails_at_zero⟩
+
+/-- Corollary: agreement at generic points does not imply the strong
+    central claim. The strong claim would require agreement at *all*
+    environments, including non-generic ones like `badEnv` where the
+    tree is undefined. -/
+theorem generic_agreement_does_not_imply_strong_claim :
+    -- Even if a verification method tests only at generic environments,
+    ∃ ρ : Nat → α,
+      -- there exists a non-generic environment ...
+      ¬ GenericForSub ρ ∧
+      -- ... at which the strong claim fails (tree evaluates to none,
+      -- so cannot equal the semantic subtraction value).
+      eval ρ (sub' (var 0) (var 1)) = none :=
+  ⟨badEnv, verify_base_set_blind_to_sub_failure⟩
 
 /-! ## The ℝ₊ defense doesn't rescue the claim
 
@@ -503,11 +680,32 @@ Unconditional refutation (structural, holds in any `PartialModel`):
                                — composition of subtractions fails.
   * `negOne_not_evaluable`     — `−1` is not an evaluable tree.
   * `two_not_evaluable`        — `2` inherits the failure.
+  * `neg_not_evaluable`        — `neg'(z)` fails for EVERY `z`: the
+                                 encoding structurally requires `ln(0)`.
+  * `add_not_evaluable`        — `add'(a, b)` fails for EVERY `a, b`:
+                                 encoded via `sub'(a, neg' b)`, and
+                                 `neg' b` is universally unevaluable.
   * `positive_reals_dont_rescue_negOne`
                                — ℝ₊ restriction cannot rescue the
                                  `-1` failure (closed tree).
   * `not_strong_claim_at_sub`  — paper's `sub'` encoding is not
                                  total on ℂ² (at the witness (0, 1)).
+  * `verify_base_set_blind_to_sub_failure`
+                               — VerifyBaseSet samples generic points
+                                 only, cannot witness the failure at
+                                 non-generic `badEnv`.
+  * `generic_agreement_does_not_imply_strong_claim`
+                               — agreement at generic witnesses is
+                                 strictly weaker than the strong claim.
+  * `non_confluence_via_alternative_witness`
+                               — any alternative encoding that evaluates
+                                 disagrees with `negOne` on evaluation,
+                                 making the paper's equational identification
+                                 unsound.
+  * `no_canonical_normalization`
+                               — no computable normalisation can canonicalise
+                                 EML trees by function equivalence, because
+                                 that would decide Richardson.
 
 Auxiliary claim (axiomatic, uses classical Richardson 1968 applied
 to the paper's own real-elementary-function scope):
